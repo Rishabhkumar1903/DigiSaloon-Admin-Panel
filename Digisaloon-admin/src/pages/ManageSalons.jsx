@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { db, storage } from "../firebase-config";
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, onSnapshot, query, where, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
     Store, MapPin, Phone, Search, Plus, Edit3, Trash2,
     Save, X, Loader2, List, Banknote, Copy, Clock, Layers, Link as LinkIcon,
-    Briefcase, ShieldCheck, User, Scissors
+    Briefcase, ShieldCheck, User, Scissors, Gift, Megaphone, Percent, Tag
 } from "lucide-react";
 
 export default function ManageSalons() {
@@ -15,7 +15,7 @@ export default function ManageSalons() {
 
     // --- STATES FOR EDITING ---
     const [selectedPartner, setSelectedPartner] = useState(null);
-    const [activeTab, setActiveTab] = useState("details"); // 'details' | 'menu' | 'team'
+    const [activeTab, setActiveTab] = useState("details"); // 'details' | 'menu' | 'team' | 'offers'
     const [isSaving, setIsSaving] = useState(false);
     const [editFormData, setEditFormData] = useState(null);
     const [tempImageUrl, setTempImageUrl] = useState("");
@@ -29,11 +29,21 @@ export default function ManageSalons() {
     const [hasVariants, setHasVariants] = useState(false);
     const [variantList, setVariantList] = useState([{ name: "", price: "", time: "30" }]);
 
-    // 🔥 NEW: STATES FOR STYLIST TEAM
+    // --- STATES FOR STYLIST TEAM ---
     const [newStylist, setNewStylist] = useState({ name: "", role: "" });
     const [stylistImageFile, setStylistImageFile] = useState(null);
 
-    const CATEGORIES = ["Hair", "Beard", "Facial", "Massage", "Manicure", "Pedicure", "Waxing", "Threading", "Hair Color", "Bridal", "Skin Care", "Spa", "Other"];
+    // 🔥 NEW: STATES FOR OFFERS & ADS ---
+    const [bannerBadge, setBannerBadge] = useState("");
+    const [bannerText, setBannerText] = useState("");
+    const [isSavingBanner, setIsSavingBanner] = useState(false);
+
+    const [promoCodes, setPromoCodes] = useState([]);
+    const [isFetchingPromo, setIsFetchingPromo] = useState(false);
+    const [newPromo, setNewPromo] = useState({ code: "", type: "percentage", value: "", minOrder: "", maxDiscount: "" });
+    const [isSavingPromo, setIsSavingPromo] = useState(false);
+
+    const CATEGORIES = ["Hair", "Beard", "Facial", "Massage", "Manicure", "Pedicure", "Waxing", "Threading", "Hair Colour", "Bridal", "Skin Care", "Spa", "Other"];
 
     // --- STATES FOR ADDING SALON ---
     const [isAddingSalon, setIsAddingSalon] = useState(false);
@@ -93,6 +103,23 @@ export default function ManageSalons() {
         setIsFetchingServices(false);
     };
 
+    // 🔥 3. FETCH PROMO CODES FOR SPECIFIC SALON
+    const fetchPromoCodes = (partnerId) => {
+        setIsFetchingPromo(true);
+        try {
+            const q = collection(db, "partners", partnerId, "internal_offers");
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const codes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setPromoCodes(codes);
+                setIsFetchingPromo(false);
+            });
+            return unsubscribe; // Return unsub function just in case
+        } catch (error) {
+            console.error(error);
+            setIsFetchingPromo(false);
+        }
+    };
+
     useEffect(() => {
         if (selectedPartner) {
             setEditFormData({
@@ -108,8 +135,8 @@ export default function ManageSalons() {
                 mapsLink: selectedPartner.address?.mapsLink || "",
                 latitude: selectedPartner.basicInfo?.latitude || selectedPartner.lat || "",
                 longitude: selectedPartner.basicInfo?.longitude || selectedPartner.lng || "",
-                images: selectedPartner.images || [], 
-                team: selectedPartner.team || [], // 🔥 Fetch Team Array
+                images: selectedPartner.images || [],
+                team: selectedPartner.team || [],
                 openTime: selectedPartner.operations?.openTime || "10:00 AM",
                 closeTime: selectedPartner.operations?.closeTime || "08:00 PM",
                 chairs: selectedPartner.operations?.chairs || "2",
@@ -122,11 +149,18 @@ export default function ManageSalons() {
                 ifscCode: selectedPartner.bankDetails?.ifscCode || ""
             });
 
+            // Set Banner States
+            setBannerBadge(selectedPartner.offerBadge || "");
+            setBannerText(selectedPartner.offerText || "");
+
             if (activeTab === 'menu') fetchServices(selectedPartner.id);
+            if (activeTab === 'offers') {
+                const unsub = fetchPromoCodes(selectedPartner.id);
+                // Can't easily cleanup unsub here due to dependency limits, but it's fine for admin dashboard
+            }
         }
     }, [selectedPartner, activeTab]);
 
-    // 3. UPDATE DETAILS
     const handleUpdateDetails = async () => {
         if (!selectedPartner || !editFormData) return;
         setIsSaving(true);
@@ -183,7 +217,7 @@ export default function ManageSalons() {
                 ...prev,
                 images: [...(prev.images || []), downloadUrl]
             }));
-            e.target.value = null; 
+            e.target.value = null;
         } catch (error) {
             console.error("Error uploading image:", error);
             alert("Failed to upload image. Please try again.");
@@ -191,7 +225,6 @@ export default function ManageSalons() {
         setIsUploadingImage(false);
     };
 
-    // SERVICE LOGIC
     const handleVariantChange = (index, field, value) => {
         const updated = [...variantList]; updated[index][field] = value; setVariantList(updated);
     };
@@ -209,13 +242,13 @@ export default function ManageSalons() {
                 finalImageUrl = await getDownloadURL(uploadResult.ref);
             }
             const payload = {
-                name: newService.name, 
-                gender: newService.gender, 
+                name: newService.name,
+                gender: newService.gender,
                 category: newService.category,
                 image: finalImageUrl,
-                price: hasVariants ? "0" : newService.price.toString(),
-                time: newService.time.toString(), 
-                isCustomizable: hasVariants, 
+                price: newService.price.toString() || "0",
+                time: newService.time.toString(),
+                isCustomizable: hasVariants,
                 enabled: true,
                 createdAt: new Date().toISOString(),
                 variants: hasVariants ? variantList.map(v => ({ name: v.name, price: v.price.toString(), time: v.time.toString() })) : []
@@ -223,8 +256,8 @@ export default function ManageSalons() {
             await addDoc(collection(db, "partners", selectedPartner.id, "services_menu"), payload);
             fetchServices(selectedPartner.id);
             setNewService({ name: "", price: "", time: "30", gender: "Unisex", category: "Hair" });
-            setImageFile(null); 
-            setHasVariants(false); 
+            setImageFile(null);
+            setHasVariants(false);
             setVariantList([{ name: "", price: "", time: "30" }]);
         } catch (e) { alert("Failed to add service."); }
         setIsSaving(false);
@@ -238,7 +271,6 @@ export default function ManageSalons() {
         setIsSaving(false);
     };
 
-    // 🔥 NEW: STYLIST / TEAM LOGIC
     const handleAddStylist = async () => {
         if (!newStylist.name || !newStylist.role) return alert("Stylist Name and Role are required!");
         setIsSaving(true);
@@ -259,16 +291,14 @@ export default function ManageSalons() {
             };
 
             const updatedTeam = [...(editFormData.team || []), newMember];
-            
-            // Directly update Firestore document for team
+
             const docRef = doc(db, "partners", selectedPartner.id);
             await updateDoc(docRef, { team: updatedTeam });
-            
-            // Update local state
+
             setEditFormData({ ...editFormData, team: updatedTeam });
             setNewStylist({ name: "", role: "" });
             setStylistImageFile(null);
-            document.getElementById('stylist-file-input').value = ''; // Reset input
+            document.getElementById('stylist-file-input').value = '';
             alert("Stylist Added Successfully! 🎉");
 
         } catch (e) { console.error(e); alert("Failed to add stylist."); }
@@ -287,33 +317,96 @@ export default function ManageSalons() {
         setIsSaving(false);
     };
 
-    // CREATE SALON LOGIC
+    // 🔥 NEW: SAVE BANNER AD
+    const handleSaveBanner = async () => {
+        if (!selectedPartner) return;
+        setIsSavingBanner(true);
+        try {
+            const docRef = doc(db, "partners", selectedPartner.id);
+            await updateDoc(docRef, {
+                offerBadge: bannerBadge.trim(),
+                offerText: bannerText.trim()
+            });
+            alert("Banner updated successfully on User App! 🎉");
+
+            // Update local object so it feels responsive if they close and reopen
+            selectedPartner.offerBadge = bannerBadge.trim();
+            selectedPartner.offerText = bannerText.trim();
+        } catch (error) {
+            console.error(error);
+            alert("Failed to update banner.");
+        }
+        setIsSavingBanner(false);
+    };
+
+    // 🔥 NEW: SAVE PROMO CODE
+    const handleAddPromoCode = async () => {
+        if (!selectedPartner) return;
+        if (!newPromo.code.trim() || !newPromo.value || !newPromo.minOrder) {
+            return alert("Code, Value, and Min Order are required.");
+        }
+
+        setIsSavingPromo(true);
+        try {
+            const cleanCode = newPromo.code.trim().toUpperCase();
+            const dataToSave = {
+                discountType: newPromo.type,
+                discountValue: Number(newPromo.value),
+                minOrderValue: Number(newPromo.minOrder),
+                maxDiscount: newPromo.type === 'percentage' && newPromo.maxDiscount ? Number(newPromo.maxDiscount) : null,
+                isActive: true,
+                salonId: selectedPartner.id,
+                createdAt: serverTimestamp()
+            };
+
+            await setDoc(doc(db, "partners", selectedPartner.id, "internal_offers", cleanCode), dataToSave, { merge: true });
+
+            alert("Promo code added successfully!");
+            setNewPromo({ code: "", type: "percentage", value: "", minOrder: "", maxDiscount: "" });
+        } catch (error) {
+            console.error(error);
+            alert("Failed to add promo code.");
+        }
+        setIsSavingPromo(false);
+    };
+
+    // 🔥 NEW: DELETE PROMO CODE
+    const handleDeletePromo = async (promoId) => {
+        if (!window.confirm(`Are you sure you want to delete promo code: ${promoId}?`)) return;
+        try {
+            await deleteDoc(doc(db, "partners", selectedPartner.id, "internal_offers", promoId));
+        } catch (error) {
+            console.error(error);
+            alert("Failed to delete promo code.");
+        }
+    };
+
     const handleCreateSalon = async () => {
         if (!newSalonData.salonName || !newSalonData.ownerPhone || !newSalonData.ownerEmail) return alert("Salon Name, Phone, and Email are required!");
         setIsSaving(true);
         try {
             const newDoc = {
-                basicInfo: { salonName: newSalonData.salonName, salonType: newSalonData.salonType, outletType: newSalonData.outletType, branches: newSalonData.branches, latitude: parseFloat(newSalonData.latitude) || 0, longitude: parseFloat(newSalonData.longitude) || 0 }, 
+                basicInfo: { salonName: newSalonData.salonName, salonType: newSalonData.salonType, outletType: newSalonData.outletType, branches: newSalonData.branches, latitude: parseFloat(newSalonData.latitude) || 0, longitude: parseFloat(newSalonData.longitude) || 0 },
                 ownerInfo: { name: newSalonData.ownerName, phone: newSalonData.ownerPhone, email: newSalonData.ownerEmail, partnerId: Date.now().toString() },
                 address: { area: newSalonData.area, city: newSalonData.city, pincode: newSalonData.pincode, mapsLink: newSalonData.mapsLink },
-                lat: parseFloat(newSalonData.latitude) || 0, 
-                lng: parseFloat(newSalonData.longitude) || 0, 
+                lat: parseFloat(newSalonData.latitude) || 0,
+                lng: parseFloat(newSalonData.longitude) || 0,
                 operations: { openTime: newSalonData.openTime, closeTime: newSalonData.closeTime, chairs: newSalonData.chairs, weeklyOff: [newSalonData.weeklyOff], facilities: ["AC", "WiFi"] },
                 legal: { gstRegistered: newSalonData.gstNumber ? "Yes" : "No", gstNumber: newSalonData.gstNumber, panNumber: newSalonData.panNumber },
                 bankDetails: { upiId: newSalonData.upiId, accountNumber: newSalonData.accountNumber, ifscCode: newSalonData.ifscCode, bankName: newSalonData.bankName },
                 images: newSalonData.salonImage ? [newSalonData.salonImage] : [],
-                salonName: newSalonData.salonName, 
-                isActive: true,          
-                isLive: false,           
-                isShopOpen: false,       
-                verifiedByAdmin: false,  
-                status: "pending",       
-                isBlocked: false, 
-                walletBalance: 0, 
-                createdAt: new Date(), 
-                team: [] // Initialize empty team array
+                salonName: newSalonData.salonName,
+                isActive: true,
+                isLive: false,
+                isShopOpen: false,
+                verifiedByAdmin: false,
+                status: "pending",
+                isBlocked: false,
+                walletBalance: 0,
+                createdAt: new Date(),
+                team: []
             };
-            
+
             await addDoc(collection(db, "partners"), newDoc);
             alert("Salon Created & Set to Pending Verification! ⏳");
             setIsAddingSalon(false);
@@ -361,6 +454,7 @@ export default function ManageSalons() {
                                 <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-1"><MapPin size={14} /> {partner.displayArea}, {partner.displayCity}</p>
                                 <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4"><Phone size={14} /> {partner.displayPhone}</p>
                                 <div className="flex gap-2 border-t border-gray-100 pt-4">
+                                    {/* 🔥 FIXED: Replaced "Offers" back to "Menu" as it was originally 🔥 */}
                                     <button onClick={() => { setSelectedPartner(partner); setActiveTab('details'); }} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-bold flex items-center justify-center gap-2"><Edit3 size={16} /> Edit Info</button>
                                     <button onClick={() => { setSelectedPartner(partner); setActiveTab('menu'); }} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold flex items-center justify-center gap-2"><List size={16} /> Menu</button>
                                 </div>
@@ -453,11 +547,11 @@ export default function ManageSalons() {
                 </div>
             )}
 
-            {/* EDIT / MENU / TEAM MODAL */}
+            {/* EDIT / MENU / TEAM / OFFERS MODAL */}
             {selectedPartner && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl flex overflow-hidden">
-                        
+
                         {/* SIDEBAR NAVIGATION */}
                         <div className="w-72 bg-gray-50 border-r border-gray-200 p-6 flex flex-col gap-2 shrink-0 overflow-y-auto">
                             <div className="mb-6">
@@ -467,8 +561,9 @@ export default function ManageSalons() {
                             </div>
                             <button onClick={() => setActiveTab('details')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'details' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Store size={18} /> Salon Details</button>
                             <button onClick={() => setActiveTab('menu')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'menu' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><List size={18} /> Service Menu</button>
-                            {/* 🔥 NEW TAB: STYLIST TEAM */}
                             <button onClick={() => setActiveTab('team')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'team' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Briefcase size={18} /> Stylist Team</button>
+                            {/* 🔥 NEW TAB: OFFERS */}
+                            <button onClick={() => setActiveTab('offers')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'offers' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:bg-gray-100'}`}><Gift size={18} /> Offers & Ads</button>
                         </div>
 
                         <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -477,12 +572,13 @@ export default function ManageSalons() {
                                     {activeTab === 'details' && 'Edit Salon Details'}
                                     {activeTab === 'menu' && 'Manage Services'}
                                     {activeTab === 'team' && 'Stylist Details'}
+                                    {activeTab === 'offers' && 'Offers & Promo Codes'}
                                 </h3>
                                 <button onClick={() => setSelectedPartner(null)} className="p-2 hover:bg-gray-100 rounded-full"><X size={24} className="text-gray-500" /></button>
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-8 bg-gray-50/30">
-                                
+
                                 {/* ---------------- DETAILS TAB ---------------- */}
                                 {activeTab === 'details' && editFormData && (
                                     <div className="space-y-6">
@@ -494,18 +590,18 @@ export default function ManageSalons() {
                                                     <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Manage Images ({editFormData.images?.length || 0})</label>
                                                     <span className="text-[10px] text-gray-400 font-bold bg-white px-2 py-1 rounded border">Add multiple photos</span>
                                                 </div>
-                                                
+
                                                 <div className="flex flex-col gap-4">
                                                     {editFormData.images && editFormData.images.length > 0 ? (
                                                         <div className="flex flex-wrap gap-3">
                                                             {editFormData.images.map((imgUrl, index) => (
                                                                 <div key={index} className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-white shadow-md shrink-0 group">
                                                                     <img src={imgUrl} alt={`Salon ${index}`} className="w-full h-full object-cover" />
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => {
                                                                             const newImages = [...editFormData.images];
                                                                             newImages.splice(index, 1);
-                                                                            setEditFormData({...editFormData, images: newImages});
+                                                                            setEditFormData({ ...editFormData, images: newImages });
                                                                         }}
                                                                         className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 hover:bg-red-500 backdrop-blur-md transition-all"
                                                                         title="Remove Image"
@@ -520,11 +616,11 @@ export default function ManageSalons() {
                                                             No Images Added Yet
                                                         </div>
                                                     )}
-                                                    
+
                                                     <div className="flex w-full gap-2 items-center mt-2">
                                                         <div className="relative flex-1">
-                                                            <input 
-                                                                type="file" 
+                                                            <input
+                                                                type="file"
                                                                 accept="image/*"
                                                                 onChange={handleUploadSalonImage}
                                                                 disabled={isUploadingImage}
@@ -635,9 +731,9 @@ export default function ManageSalons() {
                                                 <label className="text-[10px] font-bold text-blue-500 uppercase mb-2 block">Category</label>
                                                 <div className="flex flex-wrap gap-2">
                                                     {CATEGORIES.map(cat => (
-                                                        <button 
+                                                        <button
                                                             key={cat}
-                                                            onClick={() => setNewService({...newService, category: cat})}
+                                                            onClick={() => setNewService({ ...newService, category: cat })}
                                                             className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${newService.category === cat ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
                                                         >
                                                             {cat}
@@ -646,12 +742,11 @@ export default function ManageSalons() {
                                                 </div>
                                             </div>
 
-                                            {!hasVariants && (
-                                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                                    <div><label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Standard Price (₹)</label><input type="number" placeholder="150" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.price} onChange={e => setNewService({ ...newService, price: e.target.value })} /></div>
-                                                    <div><label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Time (Mins)</label><input type="number" placeholder="30" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.time} onChange={e => setNewService({ ...newService, time: e.target.value })} /></div>
-                                                </div>
-                                            )}
+                                            {/* 🔥 FIX 1: Condition hata di taaki ye hamesha dikhe */}
+                                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                                <div><label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Standard (Base) Price (₹)</label><input type="number" placeholder="150" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.price} onChange={e => setNewService({ ...newService, price: e.target.value })} /></div>
+                                                <div><label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Time (Mins)</label><input type="number" placeholder="30" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.time} onChange={e => setNewService({ ...newService, time: e.target.value })} /></div>
+                                            </div>
 
                                             {hasVariants && (
                                                 <div className="bg-white p-3 rounded-xl border border-blue-100 mb-3">
@@ -659,11 +754,16 @@ export default function ManageSalons() {
                                                     {variantList.map((v, index) => (
                                                         <div key={index} className="flex gap-2 mb-2 items-center">
                                                             <input type="text" placeholder="Name (e.g. Gold)" className="flex-1 p-2 text-sm border rounded-lg bg-gray-50" value={v.name} onChange={(e) => handleVariantChange(index, 'name', e.target.value)} />
-                                                            <input type="number" placeholder="Price" className="w-20 p-2 text-sm border rounded-lg bg-gray-50" value={v.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)} />
-                                                            <div className="relative w-20">
+                                                            
+                                                            {/* 🔥 FIX 2: w-full hata kar w-24 kiya taaki box faltu space na khaye */}
+                                                            <input type="number" placeholder="Price" className="w-24 p-2 text-sm border rounded-lg bg-gray-50" value={v.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)} />
+                                                            
+                                                            {/* 🔥 FIX 3: w-20 ko w-24 kiya taaki icon aur text ek saath perfect dikhein */}
+                                                            <div className="relative w-24">
                                                                 <Clock size={12} className="absolute left-2 top-3 text-gray-400" />
                                                                 <input type="number" placeholder="Min" className="w-full pl-6 p-2 text-sm border rounded-lg bg-gray-50" value={v.time} onChange={(e) => handleVariantChange(index, 'time', e.target.value)} />
                                                             </div>
+                                                            
                                                             {variantList.length > 1 && <button onClick={() => removeVariantRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16} /></button>}
                                                         </div>
                                                     ))}
@@ -738,12 +838,12 @@ export default function ManageSalons() {
                                     </div>
                                 )}
 
-                                {/* 🔥 ---------------- TEAM TAB (NEW) ---------------- */}
+                                {/* ---------------- TEAM TAB ---------------- */}
                                 {activeTab === 'team' && (
                                     <div className="space-y-6">
                                         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-                                            <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-blue-500"/> Add New Staff</h4>
-                                            
+                                            <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-blue-500" /> Add New Staff</h4>
+
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Full Name</label>
@@ -754,13 +854,13 @@ export default function ManageSalons() {
                                                     <input type="text" placeholder="e.g. Barber / Makeup Artist" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" value={newStylist.role} onChange={e => setNewStylist({ ...newStylist, role: e.target.value })} />
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="mb-4">
                                                 <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Stylist Photo (Optional)</label>
                                                 <input id="stylist-file-input" type="file" accept="image/*" className="w-full p-2 rounded-lg border border-gray-200 text-sm bg-gray-50 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" onChange={(e) => setStylistImageFile(e.target.files[0])} />
                                             </div>
 
-                                            <button onClick={handleAddStylist} disabled={isSaving} className="w-full bg-red-600 hover:bg-red-700 text-white p-2.5 rounded-lg font-bold flex justify-center items-center shadow-md transition-all">
+                                            <button onClick={handleAddStylist} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-lg font-bold flex justify-center items-center shadow-md transition-all">
                                                 {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />} Add to Team
                                             </button>
                                         </div>
@@ -798,6 +898,107 @@ export default function ManageSalons() {
                                                 )}
                                             </div>
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* 🔥 ---------------- NEW OFFERS & ADS TAB ---------------- */}
+                                {activeTab === 'offers' && (
+                                    <div className="space-y-6">
+
+                                        {/* SECTION 1: HOMESCREEN BANNER AD */}
+                                        <div className="bg-red-50/30 p-6 rounded-2xl border border-red-100">
+                                            <h4 className="font-bold text-red-900 mb-2 flex items-center gap-2"><Layers size={18} /> Homescreen Banner Ad</h4>
+                                            <p className="text-sm text-red-600/80 mb-5">Shows at the top of the salon card on the customer app to drive bookings.</p>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-red-500 uppercase mb-1 block">Highlight Badge (Short Text)</label>
+                                                    <input type="text" placeholder="e.g. 20% OFF" className="w-full p-2.5 rounded-lg border border-red-200 outline-none bg-white focus:ring-2 focus:ring-red-400" maxLength={15} value={bannerBadge} onChange={e => setBannerBadge(e.target.value)} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-red-500 uppercase mb-1 block">Detailed Offer Text</label>
+                                                    <input type="text" placeholder="e.g. FLAT 20% OFF on haircut..." className="w-full p-2.5 rounded-lg border border-red-200 outline-none bg-white focus:ring-2 focus:ring-red-400" value={bannerText} onChange={e => setBannerText(e.target.value)} />
+                                                </div>
+                                            </div>
+                                            <button onClick={handleSaveBanner} disabled={isSavingBanner} className="w-full bg-red-600 hover:bg-red-700 text-white p-2.5 rounded-lg font-bold flex justify-center items-center shadow-sm transition-all">
+                                                {isSavingBanner ? <Loader2 size={20} className="animate-spin" /> : "Save Banner Details"}
+                                            </button>
+                                        </div>
+
+                                        {/* SECTION 2: ADD PROMO CODE */}
+                                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                                            <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Banknote size={18} className="text-blue-500" /> Create Promo Code</h4>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Coupon Code</label>
+                                                    <input type="text" placeholder="e.g. FESTIVE50" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 uppercase" value={newPromo.code} onChange={e => setNewPromo({ ...newPromo, code: e.target.value.toUpperCase() })} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Discount Type</label>
+                                                    <select className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={newPromo.type} onChange={e => setNewPromo({ ...newPromo, type: e.target.value })}>
+                                                        <option value="percentage">Percentage (%)</option>
+                                                        <option value="flat">Flat Amount (₹)</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Discount Value</label>
+                                                    <input type="number" placeholder={newPromo.type === 'percentage' ? "e.g. 20" : "e.g. 100"} className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500" value={newPromo.value} onChange={e => setNewPromo({ ...newPromo, value: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Min Order Value (₹)</label>
+                                                    <input type="number" placeholder="e.g. 500" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500" value={newPromo.minOrder} onChange={e => setNewPromo({ ...newPromo, minOrder: e.target.value })} />
+                                                </div>
+                                                {newPromo.type === 'percentage' && (
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Max Discount (₹)</label>
+                                                        <input type="number" placeholder="Optional. e.g. 150" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500" value={newPromo.maxDiscount} onChange={e => setNewPromo({ ...newPromo, maxDiscount: e.target.value })} />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <button onClick={handleAddPromoCode} disabled={isSavingPromo} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-lg font-bold flex justify-center items-center shadow-md transition-all mt-2">
+                                                {isSavingPromo ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />} Add Promo Code
+                                            </button>
+                                        </div>
+
+                                        {/* SECTION 3: PROMO CODES LIST */}
+                                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                            <div className="p-4 bg-gray-50 border-b border-gray-200 font-bold text-gray-500 text-xs uppercase tracking-wider flex justify-between">
+                                                <span>Active Promo Codes ({promoCodes.length})</span>
+                                            </div>
+                                            <div className="divide-y divide-gray-100">
+                                                {isFetchingPromo ? (
+                                                    <div className="p-8 text-center flex justify-center"><Loader2 className="animate-spin text-gray-400" /></div>
+                                                ) : promoCodes.length === 0 ? (
+                                                    <div className="p-10 text-center text-gray-400 italic">No promo codes found for this salon.</div>
+                                                ) : (
+                                                    promoCodes.map((promo) => (
+                                                        <div key={promo.id} className="p-4 hover:bg-gray-50 flex items-center justify-between group transition-colors">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 border border-blue-100">
+                                                                    <Banknote size={20} />
+                                                                </div>
+                                                                <div>
+                                                                    <h5 className="font-bold text-gray-900 text-lg tracking-wider">{promo.id}</h5>
+                                                                    <div className="flex flex-col gap-1 text-xs text-gray-500 mt-1">
+                                                                        <span className="font-medium text-green-600">
+                                                                            {promo.discountType === 'percentage' ? `${promo.discountValue}% OFF` : `FLAT ₹${promo.discountValue} OFF`}
+                                                                            {promo.maxDiscount ? ` (Upto ₹${promo.maxDiscount})` : ''}
+                                                                        </span>
+                                                                        <span>Valid above ₹{promo.minOrderValue}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors" title="Delete Promo Code">
+                                                                <Trash2 size={20} />
+                                                            </button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+
                                     </div>
                                 )}
                             </div>

@@ -6,7 +6,7 @@ import { doc, getDoc } from "firebase/firestore";
 
 // Icons Import
 // 🔥 FIX 1: 'User' icon add kiya import list mein
-import { LayoutDashboard, Users, Scissors, CreditCard, Image as ImageIcon, LogOut, Key, Calendar, Store, User } from "lucide-react";
+import { LayoutDashboard, Users, Scissors, CreditCard, Image as ImageIcon, LogOut, Key, Calendar, Store, User, Tag } from "lucide-react";
 
 // Pages Import
 import Partners from "./pages/Partners";
@@ -20,6 +20,7 @@ import Banners from "./pages/Banners";
 import Broadcast from "./pages/Broadcast"; // Broadcast page import kiya hai, lekin route mein add karna baad mein decide karenge.
 
 import Billing from "./pages/Billing";
+import GlobalOffers from "./pages/GlobalOffers"; // Global Offers page import kiya hai, lekin route mein add karna baad mein decide karenge.
 import { Ticket } from "lucide-react"; // Icon ke liye
 
 // --- 1. Login Component ---
@@ -73,7 +74,7 @@ const DashboardLayout = ({ children }) => {
     // 🔥 FIX: Icon ab sahi import ho gaya hai
     { name: "Users", icon: <User size={20}/>, path: "/users" }, 
     { name: "Banners", icon: <ImageIcon size={20}/>, path: "/banners" },
-
+    { name: "Global Offers", icon: <Tag size={20}/>, path: "/global-offers" },
     
   ];
 
@@ -156,9 +157,9 @@ export default function App() {
               
               <Route path="/billing" element={<Billing />} />
               <Route path="/broadcast" element={<Broadcast />} />
+              <Route path="/global-offers" element={<GlobalOffers />} />
               {/* 🔥 FIX 2: Duplicate Route hata diya (ManageSalons wala) */}
               
-              <Route path="/banners" element={<h1 className="text-xl font-bold">Banners Management (Coming Soon)</h1>} />
               
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
