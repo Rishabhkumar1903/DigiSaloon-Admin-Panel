@@ -7,6 +7,7 @@ import {
     Save, X, Loader2, List, Banknote, Copy, Clock, Layers, Link as LinkIcon,
     Briefcase, ShieldCheck, User, Scissors, Gift, Megaphone, Percent, Tag
 } from "lucide-react";
+import imageCompression from 'browser-image-compression';
 
 export default function ManageSalons() {
     const [loading, setLoading] = useState(true);
@@ -56,6 +57,50 @@ export default function ManageSalons() {
         upiId: "", accountNumber: "", bankName: "", ifscCode: "",
         salonImage: ""
     });
+
+
+    // 🔥 NAYA: Admin Panel Profile Update Helper
+const updateSalonMainProfile = async (salonId) => {
+  try {
+    const servicesSnapshot = await getDocs(collection(db, "partners", salonId, "services_menu"));
+    const services = servicesSnapshot.docs.map(doc => doc.data());
+    
+    let startingPrice = 9999;
+    let keywords = [];
+
+    services.forEach(service => {
+      // String format "₹150" ya "150" ko number banayega
+      const price = parseInt(String(service.price || '0').replace(/[^0-9]/g, ''), 10);
+      if (price > 0 && price < startingPrice) startingPrice = price;
+
+      if (service.name || service.title) {
+        keywords.push((service.name || service.title).toLowerCase());
+      }
+      if (service.category) {
+        keywords.push(service.category.toLowerCase());
+      }
+    });
+
+    if (startingPrice === 9999) startingPrice = 150; 
+    const uniqueKeywords = [...new Set(keywords)];
+
+    // Firebase v9 syntax updateDoc ke liye
+    const partnerRef = doc(db, "partners", salonId);
+    await updateDoc(partnerRef, {
+      startingPrice: startingPrice,
+      serviceKeywords: uniqueKeywords
+    });
+
+    const salonRef = doc(db, "salons", salonId);
+    await updateDoc(salonRef, {
+      startingPrice: startingPrice,
+      serviceKeywords: uniqueKeywords
+    });
+
+  } catch (error) {
+    console.error("Error updating salon main profile from Admin:", error);
+  }
+};
 
     // 1. FETCH PARTNERS
     const fetchPartners = async () => {
@@ -203,14 +248,26 @@ export default function ManageSalons() {
         setIsSaving(false);
     };
 
-    const handleUploadSalonImage = async (e) => {
+   const handleUploadSalonImage = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setIsUploadingImage(true);
         try {
-            const imageRef = ref(storage, `salons/${Date.now()}_${file.name}`);
-            const uploadResult = await uploadBytes(imageRef, file);
+            // 🔥 NAYA: Web Image Compression Logic 🔥
+            const options = {
+                maxSizeMB: 0.3,          // Max size ~300KB
+                maxWidthOrHeight: 1600,  // Max resolution
+                useWebWorker: true,      // Taki browser na atke
+            };
+            
+            console.log(`Original file size: ${file.size / 1024 / 1024} MB`);
+            const compressedFile = await imageCompression(file, options);
+            console.log(`Compressed file size: ${compressedFile.size / 1024 / 1024} MB`);
+
+            // Ab compressed file upload hogi
+            const imageRef = ref(storage, `salons/${Date.now()}_${compressedFile.name}`);
+            const uploadResult = await uploadBytes(imageRef, compressedFile);
             const downloadUrl = await getDownloadURL(uploadResult.ref);
 
             setEditFormData(prev => ({
@@ -224,7 +281,6 @@ export default function ManageSalons() {
         }
         setIsUploadingImage(false);
     };
-
     const handleVariantChange = (index, field, value) => {
         const updated = [...variantList]; updated[index][field] = value; setVariantList(updated);
     };
@@ -237,8 +293,16 @@ export default function ManageSalons() {
         try {
             let finalImageUrl = "";
             if (imageFile) {
-                const imageRef = ref(storage, `services/${Date.now()}_${imageFile.name}`);
-                const uploadResult = await uploadBytes(imageRef, imageFile);
+                // 🔥 NAYA: Service Image Compression 🔥
+                const options = {
+                    maxSizeMB: 0.3,
+                    maxWidthOrHeight: 1600,
+                    useWebWorker: true,
+                };
+                const compressedImage = await imageCompression(imageFile, options);
+
+                const imageRef = ref(storage, `services/${Date.now()}_${compressedImage.name}`);
+                const uploadResult = await uploadBytes(imageRef, compressedImage);
                 finalImageUrl = await getDownloadURL(uploadResult.ref);
             }
             const payload = {
@@ -254,6 +318,10 @@ export default function ManageSalons() {
                 variants: hasVariants ? variantList.map(v => ({ name: v.name, price: v.price.toString(), time: v.time.toString() })) : []
             };
             await addDoc(collection(db, "partners", selectedPartner.id, "services_menu"), payload);
+            
+            // 🔥 YAHAN CALL KARNA HAI
+            await updateSalonMainProfile(selectedPartner.id);
+
             fetchServices(selectedPartner.id);
             setNewService({ name: "", price: "", time: "30", gender: "Unisex", category: "Hair" });
             setImageFile(null);
@@ -263,10 +331,19 @@ export default function ManageSalons() {
         setIsSaving(false);
     };
 
+    
+
     const handleDeleteService = async (serviceId) => {
         if (!window.confirm("Delete this service?")) return;
         setIsSaving(true);
-        try { await deleteDoc(doc(db, "partners", selectedPartner.id, "services_menu", serviceId)); fetchServices(selectedPartner.id); }
+        try { 
+            await deleteDoc(doc(db, "partners", selectedPartner.id, "services_menu", serviceId)); 
+            
+            // 🔥 YAHAN CALL KARNA HAI
+            await updateSalonMainProfile(selectedPartner.id);
+            
+            fetchServices(selectedPartner.id); 
+        }
         catch (e) { alert("Failed to delete"); }
         setIsSaving(false);
     };
@@ -277,8 +354,16 @@ export default function ManageSalons() {
         try {
             let finalImageUrl = "";
             if (stylistImageFile) {
-                const imageRef = ref(storage, `stylists/${Date.now()}_${stylistImageFile.name}`);
-                const uploadResult = await uploadBytes(imageRef, stylistImageFile);
+                // 🔥 NAYA: Stylist Image Compression 🔥
+                const options = {
+                    maxSizeMB: 0.3,
+                    maxWidthOrHeight: 1600,
+                    useWebWorker: true,
+                };
+                const compressedImage = await imageCompression(stylistImageFile, options);
+
+                const imageRef = ref(storage, `stylists/${Date.now()}_${compressedImage.name}`);
+                const uploadResult = await uploadBytes(imageRef, compressedImage);
                 finalImageUrl = await getDownloadURL(uploadResult.ref);
             }
 
