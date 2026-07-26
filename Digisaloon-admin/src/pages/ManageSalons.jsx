@@ -256,9 +256,11 @@ const updateSalonMainProfile = async (salonId) => {
         try {
             // 🔥 NAYA: Web Image Compression Logic 🔥
             const options = {
-                maxSizeMB: 0.3,          // Max size ~300KB
-                maxWidthOrHeight: 1600,  // Max resolution
-                useWebWorker: true,      // Taki browser na atke
+                maxSizeMB: 0.06,         // 👈 Target 60 KB
+                maxWidthOrHeight: 800,   // 👈 Banner ke liye 800px best hai
+                useWebWorker: true,
+                fileType: 'image/webp',  // 👈 Fast loading ke liye WebP format
+                initialQuality: 0.6      // 👈 60% quality se start karega
             };
             
             console.log(`Original file size: ${file.size / 1024 / 1024} MB`);
@@ -266,7 +268,7 @@ const updateSalonMainProfile = async (salonId) => {
             console.log(`Compressed file size: ${compressedFile.size / 1024 / 1024} MB`);
 
             // Ab compressed file upload hogi
-            const imageRef = ref(storage, `salons/${Date.now()}_${compressedFile.name}`);
+            const imageRef = ref(storage, `salons/${selectedPartner.id}/gallery/${Date.now()}_gallery.webp`);
             const uploadResult = await uploadBytes(imageRef, compressedFile);
             const downloadUrl = await getDownloadURL(uploadResult.ref);
 
@@ -295,13 +297,15 @@ const updateSalonMainProfile = async (salonId) => {
             if (imageFile) {
                 // 🔥 NAYA: Service Image Compression 🔥
                 const options = {
-                    maxSizeMB: 0.3,
-                    maxWidthOrHeight: 1600,
+                    maxSizeMB: 0.05,         // 👈 Target 50 KB
+                    maxWidthOrHeight: 400,   // 👈 Icons ke liye 400px kafi hai
                     useWebWorker: true,
+                    fileType: 'image/webp',
+                    initialQuality: 0.5      // 👈 50% quality
                 };
                 const compressedImage = await imageCompression(imageFile, options);
 
-                const imageRef = ref(storage, `services/${Date.now()}_${compressedImage.name}`);
+                const imageRef = ref(storage, `salons/${selectedPartner.id}/services/${Date.now()}_service.webp`);
                 const uploadResult = await uploadBytes(imageRef, compressedImage);
                 finalImageUrl = await getDownloadURL(uploadResult.ref);
             }
@@ -362,7 +366,7 @@ const updateSalonMainProfile = async (salonId) => {
                 };
                 const compressedImage = await imageCompression(stylistImageFile, options);
 
-                const imageRef = ref(storage, `stylists/${Date.now()}_${compressedImage.name}`);
+                const imageRef = ref(storage, `salons/${selectedPartner.id}/stylists/${Date.now()}_stylist.webp`);
                 const uploadResult = await uploadBytes(imageRef, compressedImage);
                 finalImageUrl = await getDownloadURL(uploadResult.ref);
             }
