@@ -35,7 +35,10 @@ export default function Partners() {
 
   useEffect(() => { fetchPartners(); }, []);
 
-  const pendingCount = partners.filter(p => String(p.status || "pending").toLowerCase().includes("pending")).length;
+  const pendingCount = partners.filter(p => {
+    const s = String(p.status || "pending").toLowerCase();
+    return s !== "verified" && s !== "rejected"; // Jo verified/rejected nahi hai, wo sab yahan count honge
+  }).length;
   const verifiedCount = partners.filter(p => p.status === "verified").length;
   const rejectedCount = partners.filter(p => p.status === "rejected").length;
 
@@ -208,9 +211,9 @@ export default function Partners() {
 
   const filteredPartners = partners.filter(partner => {
     const status = String(partner.status || "pending").toLowerCase();
-    const name = String(partner.salonName || partner.basicInfo?.salonName || partner.ownerInfo?.name || "").toLowerCase();
+    const name = String(partner.salonName || partner.basicInfo?.salonName || partner.name || partner.ownerInfo?.name || "").toLowerCase();
 
-    if (activeTab === "pending" && !status.includes("pending")) return false;
+    if (activeTab === "pending" && (status === "verified" || status === "rejected")) return false;
     if (activeTab === "verified" && status !== "verified") return false;
     if (activeTab === "rejected" && status !== "rejected") return false;
 
@@ -256,7 +259,7 @@ export default function Partners() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredPartners.map((partner) => {
-                    const displayName = partner.salonName || partner.basicInfo?.salonName || "Unknown Salon";
+                    const displayName = partner.salonName || partner.basicInfo?.salonName || partner.name || "Unknown Salon";
                     const displayPhone = partner.phone || partner.ownerInfo?.phone || "No Phone";
 
                     // 🚨 THE FIX: Agar data purana hai aur isActive missing hai, toh default 'true' manega
@@ -273,7 +276,11 @@ export default function Partners() {
                         </td>
                         <td className="p-4 text-gray-600">
                           <div className="flex items-center gap-2 mb-1"><Phone size={14} /> {displayPhone}</div>
-                          <div className="text-xs text-gray-400">{partner.address?.area || partner.address || "No Area"}</div>
+                          <div className="text-xs text-gray-400">
+                            {typeof partner.address === 'object'
+                              ? (partner.address?.area || partner.address?.city || "No Area")
+                              : (partner.address || "No Area")}
+                          </div>
                         </td>
                         <td className="p-4">
                           {activeTab === "verified" ? (
@@ -305,8 +312,8 @@ export default function Partners() {
                               <button
                                 onClick={() => handleToggleBlock(partner.id, isAppActive)}
                                 className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-all shadow-sm ${isAppActive
-                                    ? 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'
-                                    : 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200'
+                                  ? 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'
+                                  : 'bg-green-50 text-green-600 hover:bg-green-100 border-green-200'
                                   }`}
                                 title={isAppActive ? "Block Salon" : "Unblock Salon"}
                               >

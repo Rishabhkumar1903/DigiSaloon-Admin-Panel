@@ -3,7 +3,7 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-exports.sendBroadcastNotification = functions.firestore
+exports.sendBroadcastNotification = functions.region('asia-south1').firestore
   .document("broadcasts/{docId}")
   .onCreate(async (snap, context) => {
     const broadcastData = snap.data();
