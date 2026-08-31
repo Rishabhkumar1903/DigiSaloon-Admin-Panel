@@ -317,12 +317,18 @@ export default function Subscriptions() {
         {modalData && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                 <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                    <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                        <div>
+                    
+                    {/* 🔥 FIX: Header layout fixed with flex-1, min-w-0, and truncate 🔥 */}
+                    <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center gap-4">
+                        <div className="flex-1 min-w-0">
                             <h3 className="text-xl font-bold text-gray-900">Manage Subscription</h3>
-                            <p className="text-sm text-gray-500">For <span className="font-bold">{modalData.name}</span></p>
+                            <p className="text-sm text-gray-500 truncate" title={modalData.name}>
+                                For <span className="font-bold">{modalData.name}</span>
+                            </p>
                         </div>
-                        <button onClick={() => setModalData(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500"><X size={20}/></button>
+                        <button onClick={() => setModalData(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 shrink-0">
+                            <X size={20}/>
+                        </button>
                     </div>
 
                     <div className="p-6">
