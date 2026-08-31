@@ -237,15 +237,17 @@ export default function Revenue() {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    {/* 🔥 FIX 1: table-fixed added so columns obey our width settings */}
+                    <table className="w-full text-left table-fixed">
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
-                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Salon Name</th>
-                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Plan Type</th>
-                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount Paid</th>
-                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Valid Until</th>
-                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Method/Txn ID</th>
+                                {/* 🔥 FIX 2: Added specific widths to columns to balance the table */}
+                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/6">Date</th>
+                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Salon Name</th>
+                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[12%]">Plan Type</th>
+                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[15%]">Amount Paid</th>
+                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/6">Valid Until</th>
+                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right w-[15%]">Method/Txn ID</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -257,22 +259,38 @@ export default function Revenue() {
                                 filteredHistory.map((item) => (
                                     <tr key={item.id} className="hover:bg-blue-50/10 transition-colors">
                                         <td className="p-4 align-middle">
-                                            <div className="font-bold text-sm text-gray-900">{item.date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                                            <div className="text-xs text-gray-500">{item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                            <div className="font-bold text-sm text-gray-900 truncate" title={item.date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}>
+                                                {item.date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            </div>
+                                            <div className="text-xs text-gray-500 truncate" title={item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}>
+                                                {item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
                                         </td>
-                                        <td className="p-4 align-middle font-bold text-gray-800">{item.salonName}</td>
                                         <td className="p-4 align-middle">
-                                            <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${item.planType.toLowerCase().includes('founder') ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {/* 🔥 FIX 3: Salon Name ko truncate kiya taaki overflow na kare */}
+                                            <div className="font-bold text-gray-800 truncate" title={item.salonName}>
+                                                {item.salonName}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 align-middle">
+                                            <span className={`px-2.5 py-1 rounded-md text-xs font-bold whitespace-nowrap ${item.planType.toLowerCase().includes('founder') ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`} title={item.planType}>
                                                 {item.planType}
                                             </span>
                                         </td>
-                                        <td className="p-4 align-middle text-green-600 font-black text-lg">₹{item.amount.toLocaleString()}</td>
-                                        <td className="p-4 align-middle text-sm font-medium text-gray-600">
+                                        <td className="p-4 align-middle text-green-600 font-black text-lg truncate" title={`₹${item.amount.toLocaleString()}`}>
+                                            ₹{item.amount.toLocaleString()}
+                                        </td>
+                                        <td className="p-4 align-middle text-sm font-medium text-gray-600 truncate" title={item.validUntil ? item.validUntil.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : "N/A"}>
                                             {item.validUntil ? item.validUntil.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : "N/A"}
                                         </td>
                                         <td className="p-4 align-middle text-right">
-                                            <div className="text-sm font-bold text-gray-800">{item.method}</div>
-                                            <div className="text-[10px] text-gray-400 font-mono mt-0.5">{item.transactionId}</div>
+                                            {/* 🔥 FIX 4: Method aur Transaction ID ko bhi limit me rakha */}
+                                            <div className="text-sm font-bold text-gray-800 truncate ml-auto max-w-full" title={item.method}>
+                                                {item.method}
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 font-mono mt-0.5 truncate ml-auto max-w-full" title={item.transactionId}>
+                                                {item.transactionId}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

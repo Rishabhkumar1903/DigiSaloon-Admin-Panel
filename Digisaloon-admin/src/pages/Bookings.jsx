@@ -208,23 +208,37 @@ export default function Bookings() {
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {(view === 'areas' ? Object.values(groupedByArea).filter(a => a.areaName.toLowerCase().includes(areaSearch.toLowerCase())) 
                  : selectedArea?.salons.filter(s => s.name.toLowerCase().includes(salonSearch.toLowerCase()) || s.id.toLowerCase().includes(salonSearch.toLowerCase())))
                  ?.map((item, idx) => (
                     <div key={idx} onClick={() => { 
                         if(view === 'areas') { setSelectedArea(item); setView("salons"); } 
                         else { setSelectedSalonId(item.id); setSelectedSalonName(item.name); setView("details"); }
-                    }} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 cursor-pointer group hover:shadow-lg hover:-translate-y-1 transition-all">
-                        <div className="flex justify-between items-center mb-6">
-                            <div className="bg-blue-50 text-blue-700 p-3.5 rounded-xl">{view === 'areas' ? <Map size={26}/> : <Store size={26}/>}</div>
-                            <ChevronRight className="text-gray-300 group-hover:text-blue-600"/>
+                    }} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 cursor-pointer group hover:shadow-lg hover:-translate-y-1 transition-all overflow-hidden flex flex-col justify-between">
+                        
+                        <div>
+                          <div className="flex justify-between items-center mb-6">
+                              <div className="bg-blue-50 text-blue-700 p-3.5 rounded-xl shrink-0">{view === 'areas' ? <Map size={26}/> : <Store size={26}/>}</div>
+                              <ChevronRight className="text-gray-300 group-hover:text-blue-600 shrink-0"/>
+                          </div>
+                          
+                          {/* 🔥 THE FIX: truncate aur title attribute lagaya taaki text faile na 🔥 */}
+                          <h3 
+                              className="text-xl font-bold text-gray-900 mb-1 truncate w-full" 
+                              title={view === 'areas' ? item.areaName : item.name}
+                          >
+                              {view === 'areas' ? item.areaName : item.name}
+                          </h3>
+                          
+                          <p className="text-sm text-gray-500 mb-6 truncate w-full" title={view === 'areas' ? `${item.salons.length} Salons` : `ID: ${item.id}`}>
+                              {view === 'areas' ? `${item.salons.length} Salons` : `ID: ${item.id.slice(0,12)}...`}
+                          </p>
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-1">{view === 'areas' ? item.areaName : item.name}</h3>
-                        <p className="text-sm text-gray-500 mb-6">{view === 'areas' ? `${item.salons.length} Salons` : `ID: ${item.id.slice(0,12)}...`}</p>
-                        <div className="flex gap-8 border-t pt-6">
+
+                        <div className="flex gap-8 border-t pt-6 mt-auto">
                             <div><p className="text-xs font-bold text-gray-400 uppercase">Bookings</p><p className="text-2xl font-bold text-gray-800">{item.totalBookings}</p></div>
-                            <div><p className="text-xs font-bold text-gray-400 uppercase">Revenue</p><p className="text-2xl font-bold text-emerald-600">₹{item.totalRevenue.toLocaleString()}</p></div>
+                            <div><p className="text-xs font-bold text-gray-400 uppercase">Revenue</p><p className="text-2xl font-bold text-emerald-600 truncate max-w-[100px]" title={`₹${item.totalRevenue.toLocaleString()}`}>₹{item.totalRevenue.toLocaleString()}</p></div>
                         </div>
                     </div>
                 ))}

@@ -249,50 +249,61 @@ export default function Subscriptions() {
         </div>
 
         <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left table-fixed"> {/* 🔥 FIX 1: table-fixed lagaya */}
                 <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/3">Salon Details</th>
-                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider">Plan Type</th>
-                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider">Status & Expiry</th>
-                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Action</th>
+                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider w-2/5">Salon Details</th>
+                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/5">Plan Type</th>
+                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/5">Status & Expiry</th>
+                        <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider text-right w-1/5">Action</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                     {filteredSalons.map((salon) => (
                         <tr key={salon.id} className="hover:bg-blue-50/10 transition-colors">
-                            <td className="p-5">
+                            <td className="p-5 pr-8">
                                 <div className="flex flex-col gap-1.5">
-                                    <div className="font-bold text-gray-900 text-lg">{salon.name}</div>
+                                    {/* 🔥 FIX 2: truncate aur max-w lagaya taaki text na faile 🔥 */}
+                                    <div className="font-bold text-gray-900 text-lg truncate w-full" title={salon.name}>
+                                        {salon.name}
+                                    </div>
                                     <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                                        <div className="flex items-center gap-1.5"><Phone size={14} className="text-gray-400"/><span className="font-medium text-gray-700">{salon.phone}</span></div>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <Phone size={14} className="text-gray-400"/>
+                                            <span className="font-medium text-gray-700">{salon.phone}</span>
+                                        </div>
                                         {salon.area !== "Unknown" && (
-                                            <div className="flex items-center gap-1 text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 border border-gray-200">
-                                                <MapPin size={10}/> {salon.area}
+                                            <div 
+                                                className="flex items-center gap-1 text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 border border-gray-200 shrink-0 max-w-[120px]"
+                                                title={salon.area} // Hover karne par poora area dikhega
+                                            >
+                                                <MapPin size={10} className="shrink-0"/> 
+                                                {/* 🔥 FIX: truncate lagaya taaki lamba word aage se kat jaye 🔥 */}
+                                                <span className="truncate">{salon.area}</span>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="text-xs text-gray-400 mt-1 font-mono">{salon.id}</div>
+                                    <div className="text-xs text-gray-400 mt-1 font-mono truncate" title={salon.id}>{salon.id}</div>
                                 </div>
                             </td>
                             
                             <td className="p-5 align-middle">
-                                <div className="font-bold text-gray-700">{salon.subscriptionType}</div>
-                                {salon.isTrial && <div className="text-[10px] text-blue-500 mt-1 font-bold tracking-wide uppercase">Promo Applied</div>}
+                                <div className="font-bold text-gray-700 truncate" title={salon.subscriptionType}>{salon.subscriptionType}</div>
+                                {salon.isTrial && <div className="text-[10px] text-blue-500 mt-1 font-bold tracking-wide uppercase shrink-0">Promo Applied</div>}
                             </td>
 
                             <td className="p-5 align-middle">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-${salon.statusColor}-100 text-${salon.statusColor}-700 border border-${salon.statusColor}-200`}>
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-${salon.statusColor}-100 text-${salon.statusColor}-700 border border-${salon.statusColor}-200 shrink-0`}>
                                     <span className={`w-1.5 h-1.5 rounded-full bg-${salon.statusColor}-500`}></span>
                                     {salon.status}
                                 </div>
-                                <div className="text-sm font-medium text-gray-600 mt-2">
+                                <div className="text-sm font-medium text-gray-600 mt-2 shrink-0">
                                     {salon.validUntil ? salon.validUntil.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : "Not Set"}
                                 </div>
                             </td>
 
                             <td className="p-5 text-right align-middle">
-                                <button onClick={() => openManageModal(salon)} className="px-4 py-2 rounded-xl font-bold shadow-sm border border-gray-200 bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all inline-flex items-center gap-2">
+                                <button onClick={() => openManageModal(salon)} className="px-4 py-2 rounded-xl font-bold shadow-sm border border-gray-200 bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all inline-flex items-center gap-2 shrink-0">
                                     <Edit size={16}/> Manage
                                 </button>
                             </td>

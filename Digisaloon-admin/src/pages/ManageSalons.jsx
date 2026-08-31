@@ -58,49 +58,45 @@ export default function ManageSalons() {
         salonImage: ""
     });
 
+    const updateSalonMainProfile = async (salonId) => {
+        try {
+            const servicesSnapshot = await getDocs(collection(db, "partners", salonId, "services_menu"));
+            const services = servicesSnapshot.docs.map(doc => doc.data());
+            
+            let startingPrice = 9999;
+            let keywords = [];
 
-    // 🔥 NAYA: Admin Panel Profile Update Helper
-const updateSalonMainProfile = async (salonId) => {
-  try {
-    const servicesSnapshot = await getDocs(collection(db, "partners", salonId, "services_menu"));
-    const services = servicesSnapshot.docs.map(doc => doc.data());
-    
-    let startingPrice = 9999;
-    let keywords = [];
+            services.forEach(service => {
+                const price = parseInt(String(service.price || '0').replace(/[^0-9]/g, ''), 10);
+                if (price > 0 && price < startingPrice) startingPrice = price;
 
-    services.forEach(service => {
-      // String format "₹150" ya "150" ko number banayega
-      const price = parseInt(String(service.price || '0').replace(/[^0-9]/g, ''), 10);
-      if (price > 0 && price < startingPrice) startingPrice = price;
+                if (service.name || service.title) {
+                    keywords.push((service.name || service.title).toLowerCase());
+                }
+                if (service.category) {
+                    keywords.push(service.category.toLowerCase());
+                }
+            });
 
-      if (service.name || service.title) {
-        keywords.push((service.name || service.title).toLowerCase());
-      }
-      if (service.category) {
-        keywords.push(service.category.toLowerCase());
-      }
-    });
+            if (startingPrice === 9999) startingPrice = 150; 
+            const uniqueKeywords = [...new Set(keywords)];
 
-    if (startingPrice === 9999) startingPrice = 150; 
-    const uniqueKeywords = [...new Set(keywords)];
+            const partnerRef = doc(db, "partners", salonId);
+            await updateDoc(partnerRef, {
+                startingPrice: startingPrice,
+                serviceKeywords: uniqueKeywords
+            });
 
-    // Firebase v9 syntax updateDoc ke liye
-    const partnerRef = doc(db, "partners", salonId);
-    await updateDoc(partnerRef, {
-      startingPrice: startingPrice,
-      serviceKeywords: uniqueKeywords
-    });
+            const salonRef = doc(db, "salons", salonId);
+            await updateDoc(salonRef, {
+                startingPrice: startingPrice,
+                serviceKeywords: uniqueKeywords
+            });
 
-    const salonRef = doc(db, "salons", salonId);
-    await updateDoc(salonRef, {
-      startingPrice: startingPrice,
-      serviceKeywords: uniqueKeywords
-    });
-
-  } catch (error) {
-    console.error("Error updating salon main profile from Admin:", error);
-  }
-};
+        } catch (error) {
+            console.error("Error updating salon main profile from Admin:", error);
+        }
+    };
 
     // 1. FETCH PARTNERS
     const fetchPartners = async () => {
@@ -148,7 +144,7 @@ const updateSalonMainProfile = async (salonId) => {
         setIsFetchingServices(false);
     };
 
-    // 🔥 3. FETCH PROMO CODES FOR SPECIFIC SALON
+    // 3. FETCH PROMO CODES
     const fetchPromoCodes = (partnerId) => {
         setIsFetchingPromo(true);
         try {
@@ -158,7 +154,7 @@ const updateSalonMainProfile = async (salonId) => {
                 setPromoCodes(codes);
                 setIsFetchingPromo(false);
             });
-            return unsubscribe; // Return unsub function just in case
+            return unsubscribe;
         } catch (error) {
             console.error(error);
             setIsFetchingPromo(false);
@@ -194,14 +190,12 @@ const updateSalonMainProfile = async (salonId) => {
                 ifscCode: selectedPartner.bankDetails?.ifscCode || ""
             });
 
-            // Set Banner States
             setBannerBadge(selectedPartner.offerBadge || "");
             setBannerText(selectedPartner.offerText || "");
 
             if (activeTab === 'menu') fetchServices(selectedPartner.id);
             if (activeTab === 'offers') {
                 const unsub = fetchPromoCodes(selectedPartner.id);
-                // Can't easily cleanup unsub here due to dependency limits, but it's fine for admin dashboard
             }
         }
     }, [selectedPartner, activeTab]);
@@ -248,26 +242,22 @@ const updateSalonMainProfile = async (salonId) => {
         setIsSaving(false);
     };
 
-   const handleUploadSalonImage = async (e) => {
+    const handleUploadSalonImage = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setIsUploadingImage(true);
         try {
-            // 🔥 NAYA: Web Image Compression Logic 🔥
             const options = {
-                maxSizeMB: 0.06,         // 👈 Target 60 KB
-                maxWidthOrHeight: 800,   // 👈 Banner ke liye 800px best hai
+                maxSizeMB: 0.06,         
+                maxWidthOrHeight: 800,   
                 useWebWorker: true,
-                fileType: 'image/webp',  // 👈 Fast loading ke liye WebP format
-                initialQuality: 0.6      // 👈 60% quality se start karega
+                fileType: 'image/webp',  
+                initialQuality: 0.6      
             };
             
-            console.log(`Original file size: ${file.size / 1024 / 1024} MB`);
             const compressedFile = await imageCompression(file, options);
-            console.log(`Compressed file size: ${compressedFile.size / 1024 / 1024} MB`);
 
-            // Ab compressed file upload hogi
             const imageRef = ref(storage, `salons/${selectedPartner.id}/gallery/${Date.now()}_gallery.webp`);
             const uploadResult = await uploadBytes(imageRef, compressedFile);
             const downloadUrl = await getDownloadURL(uploadResult.ref);
@@ -283,6 +273,7 @@ const updateSalonMainProfile = async (salonId) => {
         }
         setIsUploadingImage(false);
     };
+
     const handleVariantChange = (index, field, value) => {
         const updated = [...variantList]; updated[index][field] = value; setVariantList(updated);
     };
@@ -295,13 +286,12 @@ const updateSalonMainProfile = async (salonId) => {
         try {
             let finalImageUrl = "";
             if (imageFile) {
-                // 🔥 NAYA: Service Image Compression 🔥
                 const options = {
-                    maxSizeMB: 0.05,         // 👈 Target 50 KB
-                    maxWidthOrHeight: 400,   // 👈 Icons ke liye 400px kafi hai
+                    maxSizeMB: 0.05,
+                    maxWidthOrHeight: 400,
                     useWebWorker: true,
                     fileType: 'image/webp',
-                    initialQuality: 0.5      // 👈 50% quality
+                    initialQuality: 0.5
                 };
                 const compressedImage = await imageCompression(imageFile, options);
 
@@ -323,7 +313,6 @@ const updateSalonMainProfile = async (salonId) => {
             };
             await addDoc(collection(db, "partners", selectedPartner.id, "services_menu"), payload);
             
-            // 🔥 YAHAN CALL KARNA HAI
             await updateSalonMainProfile(selectedPartner.id);
 
             fetchServices(selectedPartner.id);
@@ -335,17 +324,12 @@ const updateSalonMainProfile = async (salonId) => {
         setIsSaving(false);
     };
 
-    
-
     const handleDeleteService = async (serviceId) => {
         if (!window.confirm("Delete this service?")) return;
         setIsSaving(true);
         try { 
             await deleteDoc(doc(db, "partners", selectedPartner.id, "services_menu", serviceId)); 
-            
-            // 🔥 YAHAN CALL KARNA HAI
             await updateSalonMainProfile(selectedPartner.id);
-            
             fetchServices(selectedPartner.id); 
         }
         catch (e) { alert("Failed to delete"); }
@@ -358,7 +342,6 @@ const updateSalonMainProfile = async (salonId) => {
         try {
             let finalImageUrl = "";
             if (stylistImageFile) {
-                // 🔥 NAYA: Stylist Image Compression 🔥
                 const options = {
                     maxSizeMB: 0.3,
                     maxWidthOrHeight: 1600,
@@ -406,7 +389,6 @@ const updateSalonMainProfile = async (salonId) => {
         setIsSaving(false);
     };
 
-    // 🔥 NEW: SAVE BANNER AD
     const handleSaveBanner = async () => {
         if (!selectedPartner) return;
         setIsSavingBanner(true);
@@ -418,7 +400,6 @@ const updateSalonMainProfile = async (salonId) => {
             });
             alert("Banner updated successfully on User App! 🎉");
 
-            // Update local object so it feels responsive if they close and reopen
             selectedPartner.offerBadge = bannerBadge.trim();
             selectedPartner.offerText = bannerText.trim();
         } catch (error) {
@@ -428,7 +409,6 @@ const updateSalonMainProfile = async (salonId) => {
         setIsSavingBanner(false);
     };
 
-    // 🔥 NEW: SAVE PROMO CODE
     const handleAddPromoCode = async () => {
         if (!selectedPartner) return;
         if (!newPromo.code.trim() || !newPromo.value || !newPromo.minOrder) {
@@ -459,7 +439,6 @@ const updateSalonMainProfile = async (salonId) => {
         setIsSavingPromo(false);
     };
 
-    // 🔥 NEW: DELETE PROMO CODE
     const handleDeletePromo = async (promoId) => {
         if (!window.confirm(`Are you sure you want to delete promo code: ${promoId}?`)) return;
         try {
@@ -534,16 +513,20 @@ const updateSalonMainProfile = async (salonId) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
                     {filteredPartners.map(partner => (
                         <div key={partner.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden group">
-                            <div className="p-5">
+                            <div className="p-5 flex flex-col h-full">
                                 <div className="flex justify-between items-start mb-3">
-                                    <div className="h-12 w-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 font-bold text-xl uppercase">{partner.displayName?.[0] || "S"}</div>
-                                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${partner.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{partner.isActive !== false ? 'Active' : 'Inactive'}</span>
+                                    <div className="h-12 w-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 font-bold text-xl uppercase shrink-0">{partner.displayName?.[0] || "S"}</div>
+                                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase shrink-0 ${partner.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{partner.isActive !== false ? 'Active' : 'Inactive'}</span>
                                 </div>
-                                <h3 className="font-bold text-lg text-gray-900 mb-1">{partner.displayName}</h3>
-                                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-1"><MapPin size={14} /> {partner.displayArea}, {partner.displayCity}</p>
-                                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4"><Phone size={14} /> {partner.displayPhone}</p>
-                                <div className="flex gap-2 border-t border-gray-100 pt-4">
-                                    {/* 🔥 FIXED: Replaced "Offers" back to "Menu" as it was originally 🔥 */}
+                                {/* 🔥 FIX: TRUNCATE ADDED TO CARDS */}
+                                <h3 className="font-bold text-lg text-gray-900 mb-1 truncate" title={partner.displayName}>{partner.displayName}</h3>
+                                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-1 truncate w-full" title={`${partner.displayArea}, ${partner.displayCity}`}>
+                                    <MapPin size={14} className="shrink-0"/> <span className="truncate">{partner.displayArea}, {partner.displayCity}</span>
+                                </p>
+                                <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4 truncate w-full" title={partner.displayPhone}>
+                                    <Phone size={14} className="shrink-0"/> <span className="truncate">{partner.displayPhone}</span>
+                                </p>
+                                <div className="flex gap-2 border-t border-gray-100 pt-4 mt-auto">
                                     <button onClick={() => { setSelectedPartner(partner); setActiveTab('details'); }} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-bold flex items-center justify-center gap-2"><Edit3 size={16} /> Edit Info</button>
                                     <button onClick={() => { setSelectedPartner(partner); setActiveTab('menu'); }} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold flex items-center justify-center gap-2"><List size={16} /> Menu</button>
                                 </div>
@@ -553,7 +536,7 @@ const updateSalonMainProfile = async (salonId) => {
                 </div>
             )}
 
-            {/* CREATE SALON MODAL (Hidden for brevity, same as previous) */}
+            {/* CREATE SALON MODAL */}
             {isAddingSalon && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
                     <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
@@ -568,7 +551,8 @@ const updateSalonMainProfile = async (salonId) => {
                                 <div className="bg-white p-5 rounded-xl border border-gray-200">
                                     <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Store size={18} className="text-blue-500" /> Basic Info</h3>
                                     <div className="space-y-3">
-                                        <div><label className="text-xs font-bold text-gray-500">Salon Name*</label><input className="w-full p-2 border rounded-lg" value={newSalonData.salonName} onChange={e => setNewSalonData({ ...newSalonData, salonName: e.target.value })} /></div>
+                                        {/* 🔥 FIX: MAX LENGTH ADDED TO INPUTS */}
+                                        <div><label className="text-xs font-bold text-gray-500">Salon Name*</label><input maxLength={60} className="w-full p-2 border rounded-lg" value={newSalonData.salonName} onChange={e => setNewSalonData({ ...newSalonData, salonName: e.target.value })} /></div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div><label className="text-xs font-bold text-gray-500">Type</label><select className="w-full p-2 border rounded-lg" value={newSalonData.salonType} onChange={e => setNewSalonData({ ...newSalonData, salonType: e.target.value })}><option>Unisex</option><option>Male</option><option>Female</option></select></div>
                                             <div><label className="text-xs font-bold text-gray-500">Ownership</label><select className="w-full p-2 border rounded-lg" value={newSalonData.outletType} onChange={e => setNewSalonData({ ...newSalonData, outletType: e.target.value })}><option>Rent</option><option>Company Owned</option></select></div>
@@ -580,17 +564,18 @@ const updateSalonMainProfile = async (salonId) => {
                                 <div className="bg-white p-5 rounded-xl border border-gray-200">
                                     <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-purple-500" /> Owner & Location</h3>
                                     <div className="space-y-3">
-                                        <div><label className="text-xs font-bold text-gray-500">Owner Name</label><input className="w-full p-2 border rounded-lg" value={newSalonData.ownerName} onChange={e => setNewSalonData({ ...newSalonData, ownerName: e.target.value })} /></div>
+                                        {/* 🔥 FIX: MAX LENGTH ADDED TO INPUTS */}
+                                        <div><label className="text-xs font-bold text-gray-500">Owner Name</label><input maxLength={50} className="w-full p-2 border rounded-lg" value={newSalonData.ownerName} onChange={e => setNewSalonData({ ...newSalonData, ownerName: e.target.value })} /></div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div><label className="text-xs font-bold text-gray-500">Phone*</label><input className="w-full p-2 border rounded-lg" value={newSalonData.ownerPhone} onChange={e => setNewSalonData({ ...newSalonData, ownerPhone: e.target.value })} /></div>
-                                            <div><label className="text-xs font-bold text-gray-500">Email (For OTP)*</label><input type="email" placeholder="salon@gmail.com" className="w-full p-2 border rounded-lg" value={newSalonData.ownerEmail} onChange={e => setNewSalonData({ ...newSalonData, ownerEmail: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">Phone*</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.ownerPhone} onChange={e => setNewSalonData({ ...newSalonData, ownerPhone: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">Email (For OTP)*</label><input maxLength={50} type="email" placeholder="salon@gmail.com" className="w-full p-2 border rounded-lg" value={newSalonData.ownerEmail} onChange={e => setNewSalonData({ ...newSalonData, ownerEmail: e.target.value })} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div><label className="text-xs font-bold text-gray-500">Area</label><input className="w-full p-2 border rounded-lg" value={newSalonData.area} onChange={e => setNewSalonData({ ...newSalonData, area: e.target.value })} /></div>
-                                            <div><label className="text-xs font-bold text-gray-500">City</label><input className="w-full p-2 border rounded-lg" value={newSalonData.city} onChange={e => setNewSalonData({ ...newSalonData, city: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">Area</label><input maxLength={40} className="w-full p-2 border rounded-lg" value={newSalonData.area} onChange={e => setNewSalonData({ ...newSalonData, area: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">City</label><input maxLength={40} className="w-full p-2 border rounded-lg" value={newSalonData.city} onChange={e => setNewSalonData({ ...newSalonData, city: e.target.value })} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3 mt-3">
-                                            <div><label className="text-xs font-bold text-gray-500">Pincode</label><input type="text" placeholder="834001" className="w-full p-2 border rounded-lg" value={newSalonData.pincode} onChange={e => setNewSalonData({ ...newSalonData, pincode: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">Pincode</label><input maxLength={10} type="text" placeholder="834001" className="w-full p-2 border rounded-lg" value={newSalonData.pincode} onChange={e => setNewSalonData({ ...newSalonData, pincode: e.target.value })} /></div>
                                             <div><label className="text-xs font-bold text-gray-500">Maps Link</label><input type="text" placeholder="https://maps..." className="w-full p-2 border rounded-lg" value={newSalonData.mapsLink} onChange={e => setNewSalonData({ ...newSalonData, mapsLink: e.target.value })} /></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3 mt-3">
@@ -604,9 +589,9 @@ const updateSalonMainProfile = async (salonId) => {
                                 <div className="bg-white p-5 rounded-xl border border-gray-200">
                                     <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Clock size={18} className="text-orange-500" /> Operations</h3>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div><label className="text-xs font-bold text-gray-500">Open Time</label><input className="w-full p-2 border rounded-lg" value={newSalonData.openTime} onChange={e => setNewSalonData({ ...newSalonData, openTime: e.target.value })} /></div>
-                                        <div><label className="text-xs font-bold text-gray-500">Close Time</label><input className="w-full p-2 border rounded-lg" value={newSalonData.closeTime} onChange={e => setNewSalonData({ ...newSalonData, closeTime: e.target.value })} /></div>
-                                        <div><label className="text-xs font-bold text-gray-500">Chairs</label><input className="w-full p-2 border rounded-lg" value={newSalonData.chairs} onChange={e => setNewSalonData({ ...newSalonData, chairs: e.target.value })} /></div>
+                                        <div><label className="text-xs font-bold text-gray-500">Open Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.openTime} onChange={e => setNewSalonData({ ...newSalonData, openTime: e.target.value })} /></div>
+                                        <div><label className="text-xs font-bold text-gray-500">Close Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.closeTime} onChange={e => setNewSalonData({ ...newSalonData, closeTime: e.target.value })} /></div>
+                                        <div><label className="text-xs font-bold text-gray-500">Chairs</label><input maxLength={5} className="w-full p-2 border rounded-lg" value={newSalonData.chairs} onChange={e => setNewSalonData({ ...newSalonData, chairs: e.target.value })} /></div>
                                         <div><label className="text-xs font-bold text-gray-500">Weekly Off</label><select className="w-full p-2 border rounded-lg" value={newSalonData.weeklyOff} onChange={e => setNewSalonData({ ...newSalonData, weeklyOff: e.target.value })}><option>Mon</option><option>Tue</option><option>Sun</option><option>None</option></select></div>
                                     </div>
                                 </div>
@@ -616,13 +601,13 @@ const updateSalonMainProfile = async (salonId) => {
                                     <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-green-500" /> Legal & Bank</h3>
                                     <div className="space-y-3">
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div><label className="text-xs font-bold text-gray-500">GST No.</label><input className="w-full p-2 border rounded-lg" value={newSalonData.gstNumber} onChange={e => setNewSalonData({ ...newSalonData, gstNumber: e.target.value })} /></div>
-                                            <div><label className="text-xs font-bold text-gray-500">PAN No.</label><input className="w-full p-2 border rounded-lg" value={newSalonData.panNumber} onChange={e => setNewSalonData({ ...newSalonData, panNumber: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">GST No.</label><input maxLength={20} className="w-full p-2 border rounded-lg" value={newSalonData.gstNumber} onChange={e => setNewSalonData({ ...newSalonData, gstNumber: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">PAN No.</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.panNumber} onChange={e => setNewSalonData({ ...newSalonData, panNumber: e.target.value })} /></div>
                                         </div>
-                                        <div><label className="text-xs font-bold text-gray-500">UPI ID</label><input className="w-full p-2 border rounded-lg" value={newSalonData.upiId} onChange={e => setNewSalonData({ ...newSalonData, upiId: e.target.value })} /></div>
+                                        <div><label className="text-xs font-bold text-gray-500">UPI ID</label><input maxLength={40} className="w-full p-2 border rounded-lg" value={newSalonData.upiId} onChange={e => setNewSalonData({ ...newSalonData, upiId: e.target.value })} /></div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div><label className="text-xs font-bold text-gray-500">Account No.</label><input className="w-full p-2 border rounded-lg" value={newSalonData.accountNumber} onChange={e => setNewSalonData({ ...newSalonData, accountNumber: e.target.value })} /></div>
-                                            <div><label className="text-xs font-bold text-gray-500">IFSC</label><input className="w-full p-2 border rounded-lg" value={newSalonData.ifscCode} onChange={e => setNewSalonData({ ...newSalonData, ifscCode: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">Account No.</label><input maxLength={25} className="w-full p-2 border rounded-lg" value={newSalonData.accountNumber} onChange={e => setNewSalonData({ ...newSalonData, accountNumber: e.target.value })} /></div>
+                                            <div><label className="text-xs font-bold text-gray-500">IFSC</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.ifscCode} onChange={e => setNewSalonData({ ...newSalonData, ifscCode: e.target.value })} /></div>
                                         </div>
                                     </div>
                                 </div>
@@ -644,14 +629,14 @@ const updateSalonMainProfile = async (salonId) => {
                         {/* SIDEBAR NAVIGATION */}
                         <div className="w-72 bg-gray-50 border-r border-gray-200 p-6 flex flex-col gap-2 shrink-0 overflow-y-auto">
                             <div className="mb-6">
-                                <div className="h-16 w-16 bg-white border border-gray-200 rounded-full flex items-center justify-center text-2xl font-bold text-gray-400 shadow-sm mb-3">{selectedPartner.displayName?.[0]}</div>
-                                <h2 className="font-bold text-gray-900 leading-tight">{selectedPartner.displayName}</h2>
-                                <div className="mt-2 p-2 bg-gray-200 rounded text-[10px] font-mono break-all text-gray-600 select-all cursor-pointer hover:bg-gray-300" title="Click to copy" onClick={() => { navigator.clipboard.writeText(selectedPartner.id); alert("ID Copied!") }}>ID: {selectedPartner.id} <Copy size={10} className="inline ml-1" /></div>
+                                <div className="h-16 w-16 bg-white border border-gray-200 rounded-full flex items-center justify-center text-2xl font-bold text-gray-400 shadow-sm mb-3 shrink-0">{selectedPartner.displayName?.[0]}</div>
+                                {/* 🔥 FIX: SIDEBAR NAME BREAK ALL 🔥 */}
+                                <h2 className="font-bold text-gray-900 leading-tight break-all" title={selectedPartner.displayName}>{selectedPartner.displayName}</h2>
+                                <div className="mt-2 p-2 bg-gray-200 rounded text-[10px] font-mono break-all text-gray-600 select-all cursor-pointer hover:bg-gray-300" title="Click to copy" onClick={() => { navigator.clipboard.writeText(selectedPartner.id); alert("ID Copied!") }}>ID: {selectedPartner.id} <Copy size={10} className="inline ml-1 shrink-0" /></div>
                             </div>
                             <button onClick={() => setActiveTab('details')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'details' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Store size={18} /> Salon Details</button>
                             <button onClick={() => setActiveTab('menu')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'menu' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><List size={18} /> Service Menu</button>
                             <button onClick={() => setActiveTab('team')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'team' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Briefcase size={18} /> Stylist Team</button>
-                            {/* 🔥 NEW TAB: OFFERS */}
                             <button onClick={() => setActiveTab('offers')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'offers' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:bg-gray-100'}`}><Gift size={18} /> Offers & Ads</button>
                         </div>
 
@@ -673,7 +658,6 @@ const updateSalonMainProfile = async (salonId) => {
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                                            {/* Manage Images Preview Gallery */}
                                             <div className="md:col-span-2 bg-gray-50/80 p-5 rounded-xl border border-gray-200 shadow-sm">
                                                 <div className="flex justify-between items-center mb-3">
                                                     <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Manage Images ({editFormData.images?.length || 0})</label>
@@ -707,7 +691,7 @@ const updateSalonMainProfile = async (salonId) => {
                                                     )}
 
                                                     <div className="flex w-full gap-2 items-center mt-2">
-                                                        <div className="relative flex-1">
+                                                        <div className="relative flex-1 min-w-0">
                                                             <input
                                                                 type="file"
                                                                 accept="image/*"
@@ -729,7 +713,8 @@ const updateSalonMainProfile = async (salonId) => {
                                             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Store size={18} className="text-blue-500" /> Basic Info</h4>
                                                 <div className="space-y-3">
-                                                    <div><label className="text-xs font-bold text-gray-500">Salon Name</label><input className="w-full p-2 border rounded-lg" value={editFormData.salonName} onChange={e => setEditFormData({ ...editFormData, salonName: e.target.value })} /></div>
+                                                    {/* 🔥 FIX: MAX LENGTH */}
+                                                    <div><label className="text-xs font-bold text-gray-500">Salon Name</label><input maxLength={60} className="w-full p-2 border rounded-lg" value={editFormData.salonName} onChange={e => setEditFormData({ ...editFormData, salonName: e.target.value })} /></div>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <div><label className="text-xs font-bold text-gray-500">Type</label><select className="w-full p-2 border rounded-lg" value={editFormData.salonType} onChange={e => setEditFormData({ ...editFormData, salonType: e.target.value })}><option>Unisex</option><option>Male</option><option>Female</option></select></div>
                                                         <div><label className="text-xs font-bold text-gray-500">Ownership</label><select className="w-full p-2 border rounded-lg" value={editFormData.outletType} onChange={e => setEditFormData({ ...editFormData, outletType: e.target.value })}><option>Rent</option><option>Company Owned</option></select></div>
@@ -741,17 +726,18 @@ const updateSalonMainProfile = async (salonId) => {
                                             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-purple-500" /> Owner & Location</h4>
                                                 <div className="space-y-3">
-                                                    <div><label className="text-xs font-bold text-gray-500">Owner Name</label><input className="w-full p-2 border rounded-lg" value={editFormData.ownerName} onChange={e => setEditFormData({ ...editFormData, ownerName: e.target.value })} /></div>
+                                                    {/* 🔥 FIX: MAX LENGTH */}
+                                                    <div><label className="text-xs font-bold text-gray-500">Owner Name</label><input maxLength={50} className="w-full p-2 border rounded-lg" value={editFormData.ownerName} onChange={e => setEditFormData({ ...editFormData, ownerName: e.target.value })} /></div>
                                                     <div className="grid grid-cols-2 gap-3">
-                                                        <div><label className="text-xs font-bold text-gray-500">Phone</label><input className="w-full p-2 border rounded-lg" value={editFormData.ownerPhone} onChange={e => setEditFormData({ ...editFormData, ownerPhone: e.target.value })} /></div>
-                                                        <div><label className="text-xs font-bold text-gray-500">Email</label><input type="email" className="w-full p-2 border rounded-lg" value={editFormData.ownerEmail} onChange={e => setEditFormData({ ...editFormData, ownerEmail: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">Phone</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.ownerPhone} onChange={e => setEditFormData({ ...editFormData, ownerPhone: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">Email</label><input maxLength={50} type="email" className="w-full p-2 border rounded-lg" value={editFormData.ownerEmail} onChange={e => setEditFormData({ ...editFormData, ownerEmail: e.target.value })} /></div>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-3">
-                                                        <div><label className="text-xs font-bold text-gray-500">Area</label><input className="w-full p-2 border rounded-lg" value={editFormData.area} onChange={e => setEditFormData({ ...editFormData, area: e.target.value })} /></div>
-                                                        <div><label className="text-xs font-bold text-gray-500">City</label><input className="w-full p-2 border rounded-lg" value={editFormData.city} onChange={e => setEditFormData({ ...editFormData, city: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">Area</label><input maxLength={40} className="w-full p-2 border rounded-lg" value={editFormData.area} onChange={e => setEditFormData({ ...editFormData, area: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">City</label><input maxLength={40} className="w-full p-2 border rounded-lg" value={editFormData.city} onChange={e => setEditFormData({ ...editFormData, city: e.target.value })} /></div>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-3 mt-3">
-                                                        <div><label className="text-xs font-bold text-gray-500">Pincode</label><input type="text" placeholder="834001" className="w-full p-2 border rounded-lg" value={editFormData.pincode} onChange={e => setEditFormData({ ...editFormData, pincode: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">Pincode</label><input maxLength={10} type="text" placeholder="834001" className="w-full p-2 border rounded-lg" value={editFormData.pincode} onChange={e => setEditFormData({ ...editFormData, pincode: e.target.value })} /></div>
                                                         <div><label className="text-xs font-bold text-gray-500">Maps Link</label><input type="text" placeholder="https://maps..." className="w-full p-2 border rounded-lg" value={editFormData.mapsLink} onChange={e => setEditFormData({ ...editFormData, mapsLink: e.target.value })} /></div>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-3 mt-3">
@@ -765,9 +751,9 @@ const updateSalonMainProfile = async (salonId) => {
                                             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Clock size={18} className="text-orange-500" /> Operations</h4>
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div><label className="text-xs font-bold text-gray-500">Open Time</label><input className="w-full p-2 border rounded-lg" value={editFormData.openTime} onChange={e => setEditFormData({ ...editFormData, openTime: e.target.value })} /></div>
-                                                    <div><label className="text-xs font-bold text-gray-500">Close Time</label><input className="w-full p-2 border rounded-lg" value={editFormData.closeTime} onChange={e => setEditFormData({ ...editFormData, closeTime: e.target.value })} /></div>
-                                                    <div><label className="text-xs font-bold text-gray-500">Chairs</label><input className="w-full p-2 border rounded-lg" value={editFormData.chairs} onChange={e => setEditFormData({ ...editFormData, chairs: e.target.value })} /></div>
+                                                    <div><label className="text-xs font-bold text-gray-500">Open Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.openTime} onChange={e => setEditFormData({ ...editFormData, openTime: e.target.value })} /></div>
+                                                    <div><label className="text-xs font-bold text-gray-500">Close Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.closeTime} onChange={e => setEditFormData({ ...editFormData, closeTime: e.target.value })} /></div>
+                                                    <div><label className="text-xs font-bold text-gray-500">Chairs</label><input maxLength={5} className="w-full p-2 border rounded-lg" value={editFormData.chairs} onChange={e => setEditFormData({ ...editFormData, chairs: e.target.value })} /></div>
                                                     <div><label className="text-xs font-bold text-gray-500">Weekly Off</label><select className="w-full p-2 border rounded-lg" value={editFormData.weeklyOff} onChange={e => setEditFormData({ ...editFormData, weeklyOff: e.target.value })}><option>Mon</option><option>Tue</option><option>Sun</option><option>None</option></select></div>
                                                 </div>
                                             </div>
@@ -777,13 +763,13 @@ const updateSalonMainProfile = async (salonId) => {
                                                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-green-500" /> Legal & Bank</h4>
                                                 <div className="space-y-3">
                                                     <div className="grid grid-cols-2 gap-3">
-                                                        <div><label className="text-xs font-bold text-gray-500">GST No.</label><input className="w-full p-2 border rounded-lg" value={editFormData.gstNumber} onChange={e => setEditFormData({ ...editFormData, gstNumber: e.target.value })} /></div>
-                                                        <div><label className="text-xs font-bold text-gray-500">PAN No.</label><input className="w-full p-2 border rounded-lg" value={editFormData.panNumber} onChange={e => setEditFormData({ ...editFormData, panNumber: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">GST No.</label><input maxLength={20} className="w-full p-2 border rounded-lg" value={editFormData.gstNumber} onChange={e => setEditFormData({ ...editFormData, gstNumber: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">PAN No.</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.panNumber} onChange={e => setEditFormData({ ...editFormData, panNumber: e.target.value })} /></div>
                                                     </div>
-                                                    <div><label className="text-xs font-bold text-gray-500">UPI ID</label><input className="w-full p-2 border rounded-lg" value={editFormData.upiId} onChange={e => setEditFormData({ ...editFormData, upiId: e.target.value })} /></div>
+                                                    <div><label className="text-xs font-bold text-gray-500">UPI ID</label><input maxLength={40} className="w-full p-2 border rounded-lg" value={editFormData.upiId} onChange={e => setEditFormData({ ...editFormData, upiId: e.target.value })} /></div>
                                                     <div className="grid grid-cols-2 gap-3">
-                                                        <div><label className="text-xs font-bold text-gray-500">Account No.</label><input className="w-full p-2 border rounded-lg" value={editFormData.accountNumber} onChange={e => setEditFormData({ ...editFormData, accountNumber: e.target.value })} /></div>
-                                                        <div><label className="text-xs font-bold text-gray-500">IFSC</label><input className="w-full p-2 border rounded-lg" value={editFormData.ifscCode} onChange={e => setEditFormData({ ...editFormData, ifscCode: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">Account No.</label><input maxLength={25} className="w-full p-2 border rounded-lg" value={editFormData.accountNumber} onChange={e => setEditFormData({ ...editFormData, accountNumber: e.target.value })} /></div>
+                                                        <div><label className="text-xs font-bold text-gray-500">IFSC</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.ifscCode} onChange={e => setEditFormData({ ...editFormData, ifscCode: e.target.value })} /></div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -808,7 +794,8 @@ const updateSalonMainProfile = async (salonId) => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start mb-4">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Service Name</label>
-                                                    <input type="text" placeholder="e.g. Hair Spa" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.name} onChange={e => setNewService({ ...newService, name: e.target.value })} />
+                                                    {/* 🔥 FIX: MAX LENGTH 60 */}
+                                                    <input maxLength={60} type="text" placeholder="e.g. Hair Spa" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.name} onChange={e => setNewService({ ...newService, name: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Service Photo (Upload)</label>
@@ -831,7 +818,6 @@ const updateSalonMainProfile = async (salonId) => {
                                                 </div>
                                             </div>
 
-                                            {/* 🔥 FIX 1: Condition hata di taaki ye hamesha dikhe */}
                                             <div className="grid grid-cols-2 gap-4 mb-4">
                                                 <div><label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Standard (Base) Price (₹)</label><input type="number" placeholder="150" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.price} onChange={e => setNewService({ ...newService, price: e.target.value })} /></div>
                                                 <div><label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Time (Mins)</label><input type="number" placeholder="30" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.time} onChange={e => setNewService({ ...newService, time: e.target.value })} /></div>
@@ -842,18 +828,14 @@ const updateSalonMainProfile = async (salonId) => {
                                                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">Service Variants</label>
                                                     {variantList.map((v, index) => (
                                                         <div key={index} className="flex gap-2 mb-2 items-center">
-                                                            <input type="text" placeholder="Name (e.g. Gold)" className="flex-1 p-2 text-sm border rounded-lg bg-gray-50" value={v.name} onChange={(e) => handleVariantChange(index, 'name', e.target.value)} />
-                                                            
-                                                            {/* 🔥 FIX 2: w-full hata kar w-24 kiya taaki box faltu space na khaye */}
-                                                            <input type="number" placeholder="Price" className="w-24 p-2 text-sm border rounded-lg bg-gray-50" value={v.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)} />
-                                                            
-                                                            {/* 🔥 FIX 3: w-20 ko w-24 kiya taaki icon aur text ek saath perfect dikhein */}
-                                                            <div className="relative w-24">
+                                                            {/* 🔥 FIX: min-w-0 for flex inputs, MAX LENGTH 40 */}
+                                                            <input maxLength={40} type="text" placeholder="Name (e.g. Gold)" className="flex-1 p-2 text-sm border rounded-lg bg-gray-50 min-w-0" value={v.name} onChange={(e) => handleVariantChange(index, 'name', e.target.value)} />
+                                                            <input type="number" placeholder="Price" className="w-24 p-2 text-sm border rounded-lg bg-gray-50 shrink-0" value={v.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)} />
+                                                            <div className="relative w-24 shrink-0">
                                                                 <Clock size={12} className="absolute left-2 top-3 text-gray-400" />
                                                                 <input type="number" placeholder="Min" className="w-full pl-6 p-2 text-sm border rounded-lg bg-gray-50" value={v.time} onChange={(e) => handleVariantChange(index, 'time', e.target.value)} />
                                                             </div>
-                                                            
-                                                            {variantList.length > 1 && <button onClick={() => removeVariantRow(index)} className="text-red-400 hover:text-red-600"><Trash2 size={16} /></button>}
+                                                            {variantList.length > 1 && <button onClick={() => removeVariantRow(index)} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 size={16} /></button>}
                                                         </div>
                                                     ))}
                                                     <button onClick={addVariantRow} className="text-xs text-blue-600 font-bold hover:underline">+ Add Another Variant</button>
@@ -877,17 +859,19 @@ const updateSalonMainProfile = async (salonId) => {
                                                 ) : (
                                                     serviceList.map((service) => (
                                                         <div key={service.id} className="p-4 hover:bg-gray-50 group transition-colors">
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 overflow-hidden border">
+                                                            <div className="flex items-center justify-between gap-4">
+                                                                {/* 🔥 FIX: flex-1 aur min-w-0 lagaya jisse text box truncate ho sake 🔥 */}
+                                                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                                    <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 overflow-hidden border shrink-0">
                                                                         {service.image ? (
                                                                             <img src={service.image} alt="Service" className="w-full h-full object-cover" />
                                                                         ) : (
                                                                             service.isCustomizable ? <Layers size={20} /> : <Store size={20} />
                                                                         )}
                                                                     </div>
-                                                                    <div>
-                                                                        <h5 className="font-bold text-gray-900">{service.name || service.serviceName}</h5>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        {/* 🔥 FIX: Service Name Truncate 🔥 */}
+                                                                        <h5 className="font-bold text-gray-900 truncate" title={service.name || service.serviceName}>{service.name || service.serviceName}</h5>
                                                                         <div className="flex gap-2 text-xs mt-1">
                                                                             {service.category && (
                                                                                 <span className="bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-medium border border-red-100">{service.category}</span>
@@ -896,7 +880,7 @@ const updateSalonMainProfile = async (salonId) => {
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-6">
+                                                                <div className="flex items-center gap-6 shrink-0">
                                                                     {service.isCustomizable ? (
                                                                         <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100">{service.variants?.length} Variants</span>
                                                                     ) : (
@@ -909,9 +893,10 @@ const updateSalonMainProfile = async (salonId) => {
                                                                 <div className="mt-3 ml-16 bg-gray-50 rounded-lg p-3 border border-gray-100 text-sm">
                                                                     <p className="text-[10px] uppercase font-bold text-gray-400 mb-2">Options Available</p>
                                                                     {service.variants.map((v, idx) => (
-                                                                        <div key={idx} className="flex justify-between py-1 border-b border-gray-200 last:border-0">
-                                                                            <span className="text-gray-700 font-medium">{v.name}</span>
-                                                                            <div className="flex gap-3">
+                                                                        <div key={idx} className="flex justify-between py-1 border-b border-gray-200 last:border-0 gap-4">
+                                                                            {/* 🔥 FIX: Variant Name Truncate 🔥 */}
+                                                                            <span className="text-gray-700 font-medium truncate flex-1 min-w-0" title={v.name}>{v.name}</span>
+                                                                            <div className="flex gap-3 shrink-0">
                                                                                 <span className="text-xs text-gray-500 flex items-center gap-1"><Clock size={10} /> {v.time}m</span>
                                                                                 <span className="font-bold text-gray-900">₹{v.price}</span>
                                                                             </div>
@@ -936,11 +921,12 @@ const updateSalonMainProfile = async (salonId) => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Full Name</label>
-                                                    <input type="text" placeholder="e.g. Rahul Mahto" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" value={newStylist.name} onChange={e => setNewStylist({ ...newStylist, name: e.target.value })} />
+                                                    {/* 🔥 FIX: MAX LENGTH */}
+                                                    <input maxLength={40} type="text" placeholder="e.g. Rahul Mahto" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" value={newStylist.name} onChange={e => setNewStylist({ ...newStylist, name: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Specialization (Role)</label>
-                                                    <input type="text" placeholder="e.g. Barber / Makeup Artist" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" value={newStylist.role} onChange={e => setNewStylist({ ...newStylist, role: e.target.value })} />
+                                                    <input maxLength={30} type="text" placeholder="e.g. Barber / Makeup Artist" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" value={newStylist.role} onChange={e => setNewStylist({ ...newStylist, role: e.target.value })} />
                                                 </div>
                                             </div>
 
@@ -963,23 +949,24 @@ const updateSalonMainProfile = async (salonId) => {
                                                     <div className="p-10 text-center text-gray-400 italic">No stylists found. Add your team!</div>
                                                 ) : (
                                                     editFormData.team.map((stylist) => (
-                                                        <div key={stylist.id} className="p-4 hover:bg-gray-50 flex items-center justify-between group transition-colors">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="h-12 w-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 overflow-hidden border-2 border-white shadow-sm">
+                                                        <div key={stylist.id} className="p-4 hover:bg-gray-50 flex items-center justify-between group transition-colors gap-4">
+                                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                                <div className="h-12 w-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 overflow-hidden border-2 border-white shadow-sm shrink-0">
                                                                     {stylist.image ? (
                                                                         <img src={stylist.image} alt={stylist.name} className="w-full h-full object-cover" />
                                                                     ) : (
                                                                         <User size={20} />
                                                                     )}
                                                                 </div>
-                                                                <div>
-                                                                    <h5 className="font-bold text-gray-900">{stylist.name}</h5>
-                                                                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-                                                                        <Scissors size={12} /> {stylist.role}
+                                                                {/* 🔥 FIX: Stylist Name & Role Truncate 🔥 */}
+                                                                <div className="flex-1 min-w-0">
+                                                                    <h5 className="font-bold text-gray-900 truncate" title={stylist.name}>{stylist.name}</h5>
+                                                                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate" title={stylist.role}>
+                                                                        <Scissors size={12} className="shrink-0"/> <span className="truncate">{stylist.role}</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <button onClick={() => handleDeleteStylist(stylist.id)} className="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors" title="Remove Stylist">
+                                                            <button onClick={() => handleDeleteStylist(stylist.id)} className="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors shrink-0" title="Remove Stylist">
                                                                 <Trash2 size={18} />
                                                             </button>
                                                         </div>
@@ -1006,7 +993,8 @@ const updateSalonMainProfile = async (salonId) => {
                                                 </div>
                                                 <div>
                                                     <label className="text-[10px] font-bold text-red-500 uppercase mb-1 block">Detailed Offer Text</label>
-                                                    <input type="text" placeholder="e.g. FLAT 20% OFF on haircut..." className="w-full p-2.5 rounded-lg border border-red-200 outline-none bg-white focus:ring-2 focus:ring-red-400" value={bannerText} onChange={e => setBannerText(e.target.value)} />
+                                                    {/* 🔥 FIX: MAX LENGTH 60 */}
+                                                    <input maxLength={60} type="text" placeholder="e.g. FLAT 20% OFF on haircut..." className="w-full p-2.5 rounded-lg border border-red-200 outline-none bg-white focus:ring-2 focus:ring-red-400" value={bannerText} onChange={e => setBannerText(e.target.value)} />
                                                 </div>
                                             </div>
                                             <button onClick={handleSaveBanner} disabled={isSavingBanner} className="w-full bg-red-600 hover:bg-red-700 text-white p-2.5 rounded-lg font-bold flex justify-center items-center shadow-sm transition-all">
@@ -1021,7 +1009,8 @@ const updateSalonMainProfile = async (salonId) => {
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Coupon Code</label>
-                                                    <input type="text" placeholder="e.g. FESTIVE50" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 uppercase" value={newPromo.code} onChange={e => setNewPromo({ ...newPromo, code: e.target.value.toUpperCase() })} />
+                                                    {/* 🔥 FIX: MAX LENGTH 20 */}
+                                                    <input maxLength={20} type="text" placeholder="e.g. FESTIVE50" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 uppercase" value={newPromo.code} onChange={e => setNewPromo({ ...newPromo, code: e.target.value.toUpperCase() })} />
                                                 </div>
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Discount Type</label>
@@ -1063,13 +1052,14 @@ const updateSalonMainProfile = async (salonId) => {
                                                     <div className="p-10 text-center text-gray-400 italic">No promo codes found for this salon.</div>
                                                 ) : (
                                                     promoCodes.map((promo) => (
-                                                        <div key={promo.id} className="p-4 hover:bg-gray-50 flex items-center justify-between group transition-colors">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 border border-blue-100">
+                                                        <div key={promo.id} className="p-4 hover:bg-gray-50 flex items-center justify-between group transition-colors gap-4">
+                                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                                <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 border border-blue-100 shrink-0">
                                                                     <Banknote size={20} />
                                                                 </div>
-                                                                <div>
-                                                                    <h5 className="font-bold text-gray-900 text-lg tracking-wider">{promo.id}</h5>
+                                                                <div className="flex-1 min-w-0">
+                                                                    {/* 🔥 FIX: Promo Code Truncate 🔥 */}
+                                                                    <h5 className="font-bold text-gray-900 text-lg tracking-wider truncate" title={promo.id}>{promo.id}</h5>
                                                                     <div className="flex flex-col gap-1 text-xs text-gray-500 mt-1">
                                                                         <span className="font-medium text-green-600">
                                                                             {promo.discountType === 'percentage' ? `${promo.discountValue}% OFF` : `FLAT ₹${promo.discountValue} OFF`}
@@ -1079,7 +1069,7 @@ const updateSalonMainProfile = async (salonId) => {
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors" title="Delete Promo Code">
+                                                            <button onClick={() => handleDeletePromo(promo.id)} className="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors shrink-0" title="Delete Promo Code">
                                                                 <Trash2 size={20} />
                                                             </button>
                                                         </div>

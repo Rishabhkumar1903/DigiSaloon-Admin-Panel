@@ -184,28 +184,32 @@ export default function Credentials() {
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         {loading ? <div className="p-8 text-center text-gray-500">Loading...</div> : 
          filteredList.length === 0 ? <div className="p-12 text-center text-gray-400"><Shield size={48} className="mx-auto mb-3 opacity-20"/><p>No partners found.</p></div> : (
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="p-4 font-semibold text-gray-600">Salon Details</th>
-                <th className="p-4 font-semibold text-gray-600">Username (Email)</th>
-                {activeTab === "active" && <th className="p-4 font-semibold text-gray-600">Password</th>}
-                <th className="p-4 font-semibold text-gray-600">Email Status</th>
+                {/* 🔥 The Fix: Har header ko ek width de di taaki table balance rahe 🔥 */}
+                <th className="p-4 font-semibold text-gray-600 w-1/4">Salon Details</th>
+                <th className="p-4 font-semibold text-gray-600 w-1/4">Username (Email)</th>
+                {activeTab === "active" && <th className="p-4 font-semibold text-gray-600 w-1/6">Password</th>}
+                <th className="p-4 font-semibold text-gray-600 w-1/6">Email Status</th>
                 <th className="p-4 font-semibold text-right text-gray-600">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredList.map((partner) => {
                  const email = partner.email || partner.ownerInfo?.email || "No Email";
+                 const salonName = partner.salonName || partner.basicInfo?.salonName || "Unknown Salon";
                  
                  return (
                   <tr key={partner.id} className="hover:bg-gray-50 transition-colors">
                     
-                    {/* 🔥 UPDATED ID COLUMN: Full ID + Copy Button */}
-                    <td className="p-4">
-                        <div className="font-bold text-gray-800">{partner.salonName || partner.basicInfo?.salonName}</div>
+                    {/* 🔥 1. SALON DETAILS WALA COLUMN (Width limit & Truncate) 🔥 */}
+                    <td className="p-4 max-w-[200px] md:max-w-[250px]">
+                        <div className="font-bold text-gray-800 text-lg truncate" title={salonName}>
+                            {salonName}
+                        </div>
                         <div className="mt-1 flex items-center gap-2">
-                             <div className="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded border border-gray-200 font-mono break-all" title={partner.id}>
+                             <div className="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded border border-gray-200 font-mono truncate" title={partner.id}>
                                 ID: {partner.id}
                              </div>
                              <button 
@@ -218,10 +222,13 @@ export default function Credentials() {
                         </div>
                     </td>
 
-                    <td className="p-4 text-gray-600 font-mono text-sm">
+                    {/* 🔥 2. USERNAME / EMAIL COLUMN (Width limit & Truncate) 🔥 */}
+                    <td className="p-4 text-gray-600 font-mono text-sm max-w-[150px] md:max-w-[200px]">
                         <div className="flex items-center gap-2">
-                            {email}
-                            <button onClick={() => copyToClipboard(email)} className="text-gray-400 hover:text-blue-500"><Copy size={12}/></button>
+                            <span className="truncate" title={email}>{email}</span>
+                            <button onClick={() => copyToClipboard(email)} className="text-gray-400 hover:text-blue-500 shrink-0">
+                                <Copy size={12}/>
+                            </button>
                         </div>
                     </td>
 
@@ -231,11 +238,11 @@ export default function Credentials() {
                                 <span className="font-mono text-sm font-bold text-gray-700">
                                     {visiblePasswordId === partner.id ? (partner.adminPassword || "Unknown") : "••••••••"}
                                 </span>
-                                <button onClick={() => setVisiblePasswordId(visiblePasswordId === partner.id ? null : partner.id)} className="text-gray-400 hover:text-blue-600 ml-2">
+                                <button onClick={() => setVisiblePasswordId(visiblePasswordId === partner.id ? null : partner.id)} className="text-gray-400 hover:text-blue-600 ml-2 shrink-0">
                                     {visiblePasswordId === partner.id ? <EyeOff size={16}/> : <Eye size={16}/>}
                                 </button>
                                 {visiblePasswordId === partner.id && partner.adminPassword && (
-                                    <button onClick={() => copyToClipboard(partner.adminPassword)} className="text-gray-400 hover:text-green-600"><Copy size={14}/></button>
+                                    <button onClick={() => copyToClipboard(partner.adminPassword)} className="text-gray-400 hover:text-green-600 shrink-0"><Copy size={14}/></button>
                                 )}
                             </div>
                         </td>
@@ -255,19 +262,19 @@ export default function Credentials() {
 
                     <td className="p-4 text-right">
                         {activeTab === "pending" ? (
-                            <button onClick={() => setSelectedPartner(partner)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2 ml-auto">
+                            <button onClick={() => setSelectedPartner(partner)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2 ml-auto shrink-0">
                                 <Key size={16}/> Create Login
                             </button>
                         ) : (
                             <div className="flex gap-2 justify-end">
                                 <button 
                                     onClick={() => handleSendEmail(partner)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 border transition-all ${partner.emailSent ? 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50' : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'}`}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 border transition-all shrink-0 ${partner.emailSent ? 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50' : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'}`}
                                 >
                                     <Send size={12}/> {partner.emailSent ? "Resend" : "Send Mail"}
                                 </button>
 
-                                <button onClick={() => setSelectedPartner(partner)} className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 border border-gray-200 flex items-center gap-1">
+                                <button onClick={() => setSelectedPartner(partner)} className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 border border-gray-200 flex items-center gap-1 shrink-0">
                                     <Lock size={12}/> Reset
                                 </button>
                             </div>

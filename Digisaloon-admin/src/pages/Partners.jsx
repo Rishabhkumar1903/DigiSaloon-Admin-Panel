@@ -18,7 +18,7 @@ export default function Partners() {
     area: "", city: "", pincode: "", mapsLink: "",
     latitude: "", longitude: "",
     salonType: "", outletType: "", branches: "", source: "",
-    openTime: "", closeTime: "", chairs: "", weeklyOff: [], facilities: [],
+    openTime: "", closeTime: "", weeklyOff: [], facilities: [],
     team: [],
     newFacility: "", newTeamName: "", newTeamRole: ""
   });
@@ -37,7 +37,7 @@ export default function Partners() {
 
   const pendingCount = partners.filter(p => {
     const s = String(p.status || "pending").toLowerCase();
-    return s !== "verified" && s !== "rejected"; // Jo verified/rejected nahi hai, wo sab yahan count honge
+    return s !== "verified" && s !== "rejected";
   }).length;
   const verifiedCount = partners.filter(p => p.status === "verified").length;
   const rejectedCount = partners.filter(p => p.status === "rejected").length;
@@ -54,7 +54,6 @@ export default function Partners() {
     const reason = window.prompt("Reason for rejection:");
     if (!reason) return;
     try {
-      // 🚨 ALREADY FIXED: isActive false ho raha hai taaki user app se hide ho jaye
       await updateDoc(doc(db, "partners", id), { status: "rejected", isLive: false, isActive: false, rejectionReason: reason });
       fetchPartners();
     } catch (error) { console.error(error); }
@@ -103,7 +102,6 @@ export default function Partners() {
 
       openTime: partner.operations?.openTime || "",
       closeTime: partner.operations?.closeTime || "",
-      chairs: partner.operations?.chairs || "",
       weeklyOff: partner.operations?.weeklyOff || [],
       facilities: partner.operations?.facilities || [],
 
@@ -181,7 +179,6 @@ export default function Partners() {
 
         "operations.openTime": editForm.openTime,
         "operations.closeTime": editForm.closeTime,
-        "operations.chairs": editForm.chairs,
         "operations.weeklyOff": editForm.weeklyOff,
         "operations.facilities": editForm.facilities,
 
@@ -261,27 +258,33 @@ export default function Partners() {
                   {filteredPartners.map((partner) => {
                     const displayName = partner.salonName || partner.basicInfo?.salonName || partner.name || "Unknown Salon";
                     const displayPhone = partner.phone || partner.ownerInfo?.phone || "No Phone";
-
-                    // 🚨 THE FIX: Agar data purana hai aur isActive missing hai, toh default 'true' manega
                     const isAppActive = partner.isActive !== false;
 
                     return (
                       <tr key={partner.id} className={`hover:bg-gray-50 transition-colors align-top ${!isAppActive && activeTab === 'verified' ? 'opacity-60 bg-gray-50' : ''}`}>
-                        <td className="p-4">
-                          <div className="font-bold text-gray-800 text-lg">{displayName}</div>
+                        
+                        <td className="p-4 max-w-[200px] md:max-w-[250px]">
+                          <div className="font-bold text-gray-800 text-lg truncate" title={displayName}>
+                            {displayName}
+                          </div>
                           <div className="mt-1 flex items-center gap-2">
                             <div className="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded border border-gray-200 font-mono">ID: {partner.id.slice(0, 6)}...</div>
                             <button onClick={() => copyToClipboard(partner.id)} className="text-gray-400 hover:text-blue-600"><Copy size={14} /></button>
                           </div>
                         </td>
-                        <td className="p-4 text-gray-600">
+
+                        <td className="p-4 text-gray-600 max-w-[200px] md:max-w-[250px]">
                           <div className="flex items-center gap-2 mb-1"><Phone size={14} /> {displayPhone}</div>
-                          <div className="text-xs text-gray-400">
+                          <div 
+                            className="text-xs text-gray-400 truncate"
+                            title={typeof partner.address === 'object' ? (partner.address?.area || partner.address?.city || "No Area") : (partner.address || "No Area")}
+                          >
                             {typeof partner.address === 'object'
                               ? (partner.address?.area || partner.address?.city || "No Area")
                               : (partner.address || "No Area")}
                           </div>
                         </td>
+
                         <td className="p-4">
                           {activeTab === "verified" ? (
                             isAppActive ?
@@ -295,6 +298,7 @@ export default function Partners() {
                               <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold capitalize">Incomplete Form</span>
                           )}
                         </td>
+
                         <td className="p-4 text-right">
                           <div className="flex justify-end gap-2">
                             <button onClick={() => openEditModal(partner)} className="bg-gray-100 text-gray-600 p-2 rounded-lg hover:bg-gray-200 border border-gray-300 transition-all" title="Edit"><Pencil size={18} /></button>
@@ -307,7 +311,6 @@ export default function Partners() {
                               </>
                             )}
 
-                            {/* 🚨 THE FIX: Distinct Block / Unblock Buttons with Text */}
                             {activeTab === "verified" && (
                               <button
                                 onClick={() => handleToggleBlock(partner.id, isAppActive)}
@@ -339,6 +342,7 @@ export default function Partners() {
           )}
       </div>
 
+      {/* 🔥 VIEW MODAL 🔥 */}
       {selectedPartner && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200">
@@ -346,6 +350,7 @@ export default function Partners() {
               <h2 className="text-2xl font-black text-gray-800">Salon Details</h2>
               <button onClick={() => setSelectedPartner(null)} className="p-2 bg-white rounded-full hover:bg-gray-200 transition-all shadow-sm"><X size={24} /></button>
             </div>
+            
             <div className="p-8 overflow-y-auto flex-1 space-y-8">
               <section>
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">📸 Salon Images</h3>
@@ -357,15 +362,16 @@ export default function Partners() {
               </section>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
                 <section className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
                   <h3 className="text-lg font-bold text-blue-800 mb-4">👤 Owner & Contact</h3>
                   <div className="space-y-3 text-sm">
-                    <p><span className="font-bold text-gray-600">Name:</span> {selectedPartner.ownerInfo?.name || selectedPartner.name || "N/A"}</p>
-                    <p><span className="font-bold text-gray-600">Phone:</span> {selectedPartner.ownerInfo?.phone || selectedPartner.phone || "N/A"}</p>
-                    <p><span className="font-bold text-gray-600">Email:</span> {selectedPartner.ownerInfo?.email || selectedPartner.email || "N/A"}</p>
-                    <p><span className="font-bold text-gray-600">Address:</span> {selectedPartner.address?.area || ""}, {selectedPartner.address?.city || ""} - {selectedPartner.address?.pincode || ""}</p>
+                    <p className="break-words"><span className="font-bold text-gray-600">Name:</span> {selectedPartner.ownerInfo?.name || selectedPartner.name || "N/A"}</p>
+                    <p className="break-words"><span className="font-bold text-gray-600">Phone:</span> {selectedPartner.ownerInfo?.phone || selectedPartner.phone || "N/A"}</p>
+                    <p className="break-all"><span className="font-bold text-gray-600">Email:</span> {selectedPartner.ownerInfo?.email || selectedPartner.email || "N/A"}</p>
+                    <p className="break-words"><span className="font-bold text-gray-600">Address:</span> {selectedPartner.address?.area || ""}, {selectedPartner.address?.city || ""} - {selectedPartner.address?.pincode || ""}</p>
                     {selectedPartner.address?.mapsLink && (
-                      <p><span className="font-bold text-gray-600">Location:</span> <a href={selectedPartner.address.mapsLink} target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-800">Google Maps Link</a></p>
+                      <p className="break-all"><span className="font-bold text-gray-600">Location:</span> <a href={selectedPartner.address.mapsLink} target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-800">Google Maps Link</a></p>
                     )}
                   </div>
                 </section>
@@ -384,7 +390,6 @@ export default function Partners() {
                   <h3 className="text-lg font-bold text-orange-800 mb-4">⚙️ Operations</h3>
                   <div className="space-y-3 text-sm">
                     <p><span className="font-bold text-gray-600">Timings:</span> {selectedPartner.operations?.openTime || "N/A"} to {selectedPartner.operations?.closeTime || "N/A"}</p>
-                    <p><span className="font-bold text-gray-600">Total Chairs:</span> {selectedPartner.operations?.chairs || "N/A"}</p>
                     <p><span className="font-bold text-gray-600">Weekly Off:</span> {selectedPartner.operations?.weeklyOff?.join(', ') || "None"}</p>
                     <p><span className="font-bold text-gray-600">Facilities:</span> {selectedPartner.operations?.facilities?.join(', ') || "N/A"}</p>
                   </div>
@@ -409,7 +414,9 @@ export default function Partners() {
                   {selectedPartner.team && selectedPartner.team.length > 0 ? (
                     <ul className="list-disc pl-5 space-y-2 text-sm text-gray-700">
                       {selectedPartner.team.map((member, idx) => (
-                        <li key={idx}><span className="font-bold">{member.name}</span> <span className="text-gray-500">({member.role})</span></li>
+                        <li key={idx} className="break-all pr-2">
+                          <span className="font-bold">{member.name}</span> <span className="text-gray-500">({member.role})</span>
+                        </li>
                       ))}
                     </ul>
                   ) : (
@@ -421,7 +428,9 @@ export default function Partners() {
                   <h3 className="text-lg font-bold text-gray-800 mb-4">✂️ Services Offered</h3>
                   <div className="flex flex-wrap gap-2">
                     {(selectedPartner.services || []).map((service, idx) => (
-                      <span key={idx} className="bg-white text-gray-700 px-3 py-1 rounded-full text-sm font-medium border border-gray-300 shadow-sm">{service}</span>
+                      <span key={idx} className="bg-white text-gray-700 px-3 py-1 rounded-full text-sm font-medium border border-gray-300 shadow-sm break-all max-w-full">
+                        {service}
+                      </span>
                     ))}
                     {(!selectedPartner.services || selectedPartner.services.length === 0) && <p className="text-gray-400 italic">No services listed.</p>}
                   </div>
@@ -435,6 +444,7 @@ export default function Partners() {
                 </section>
               )}
             </div>
+            
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
               <button onClick={() => setSelectedPartner(null)} className="px-6 py-2 rounded-xl text-gray-600 font-bold hover:bg-gray-200 transition-all">Close</button>
             </div>
@@ -442,6 +452,7 @@ export default function Partners() {
         </div>
       )}
 
+      {/* 🔥 EDIT MODAL 🔥 */}
       {editingPartner && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-2xl h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200">
@@ -451,6 +462,7 @@ export default function Partners() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                 <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Manage Images</label>
                 <div className="flex gap-3 overflow-x-auto pb-2">
@@ -489,7 +501,6 @@ export default function Partners() {
                 <div className="grid grid-cols-3 gap-4">
                   <input type="text" placeholder="Opening Time" value={editForm.openTime} onChange={(e) => setEditForm({ ...editForm, openTime: e.target.value })} className="p-3 border rounded-lg w-full" />
                   <input type="text" placeholder="Closing Time" value={editForm.closeTime} onChange={(e) => setEditForm({ ...editForm, closeTime: e.target.value })} className="p-3 border rounded-lg w-full" />
-                  <input type="number" placeholder="Chairs" value={editForm.chairs} onChange={(e) => setEditForm({ ...editForm, chairs: e.target.value })} className="p-3 border rounded-lg w-full" />
                 </div>
               </div>
 
@@ -508,16 +519,16 @@ export default function Partners() {
                 <h3 className="font-bold text-gray-800 border-b pb-1">👥 Manage Team</h3>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {editForm.team.map((member, index) => (
-                    <span key={index} className="bg-teal-50 text-teal-700 px-3 py-1 rounded-full text-sm font-medium border border-teal-200 flex items-center gap-1">
-                      {member.name} ({member.role})
-                      <button onClick={() => removeTeamMember(index)} className="hover:text-red-600"><X size={14} /></button>
+                    <span key={index} className="bg-teal-50 text-teal-700 px-3 py-1 rounded-full text-sm font-medium border border-teal-200 flex items-center gap-2 max-w-full">
+                      <span className="break-all">{member.name} ({member.role})</span>
+                      <button onClick={() => removeTeamMember(index)} className="hover:text-red-600 shrink-0"><X size={14} /></button>
                     </span>
                   ))}
                 </div>
                 <div className="flex gap-2">
                   <input type="text" placeholder="Staff Name" value={editForm.newTeamName} onChange={(e) => setEditForm({ ...editForm, newTeamName: e.target.value })} className="p-2 border rounded-lg flex-1" />
                   <input type="text" placeholder="Role (e.g. Hair)" value={editForm.newTeamRole} onChange={(e) => setEditForm({ ...editForm, newTeamRole: e.target.value })} className="p-2 border rounded-lg flex-1" />
-                  <button onClick={addTeamMember} className="bg-teal-600 text-white p-2 rounded-lg"><Plus size={20} /></button>
+                  <button onClick={addTeamMember} className="bg-teal-600 text-white p-2 rounded-lg shrink-0"><Plus size={20} /></button>
                 </div>
               </div>
 
@@ -525,17 +536,18 @@ export default function Partners() {
                 <h3 className="font-bold text-gray-800 border-b pb-1">✂️ Services</h3>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {editForm.services.map((service, index) => (
-                    <span key={index} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium border border-gray-200 flex items-center gap-1">
-                      {service}
-                      <button onClick={() => removeService(index)} className="hover:text-red-600"><X size={14} /></button>
+                    <span key={index} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium border border-gray-200 flex items-center gap-2 max-w-full">
+                      <span className="break-all">{service}</span>
+                      <button onClick={() => removeService(index)} className="hover:text-red-600 shrink-0"><X size={14} /></button>
                     </span>
                   ))}
                 </div>
                 <div className="flex gap-2">
                   <input type="text" placeholder="Add Service..." value={editForm.newService} onChange={(e) => setEditForm({ ...editForm, newService: e.target.value })} className="p-2 border rounded-lg flex-1" />
-                  <button onClick={addService} className="bg-gray-800 text-white p-2 rounded-lg"><Plus size={20} /></button>
+                  <button onClick={addService} className="bg-gray-800 text-white p-2 rounded-lg shrink-0"><Plus size={20} /></button>
                 </div>
               </div>
+
             </div>
 
             <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
