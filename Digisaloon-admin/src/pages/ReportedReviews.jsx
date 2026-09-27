@@ -76,12 +76,13 @@ const ReportedReviews = () => {
         try {
             const statusToSet = type === 'delete' ? 'review_deleted' : 'dismissed_by_admin';
 
-            // 🔥 NAYA JADOO: Original review document ka status bhi update karo 🔥
-            if (type === 'delete') {
-                await updateDoc(doc(db, 'partners', report.partnerId, 'reviews', report.reviewId), {
-                    status: 'review_deleted'
-                });
-            }
+            // 🔥 NAYA JADOO: Original review document ko HAMESHA update karo (Delete ho ya Dismiss) 🔥
+            await updateDoc(doc(db, 'partners', report.partnerId, 'reviews', report.reviewId), {
+                status: statusToSet,
+                adminReason: adminReason.trim()
+            });
+
+            // Report document ko update karo
 
             // Report document ko update karo
             await updateDoc(doc(db, 'reported_reviews', report.id), {
