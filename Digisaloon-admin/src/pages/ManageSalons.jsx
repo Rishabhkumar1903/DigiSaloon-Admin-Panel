@@ -1,11 +1,16 @@
 import { useState, useEffect } from "react";
-import { db, storage } from "../firebase-config";
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, onSnapshot, query, where, serverTimestamp, setDoc } from "firebase/firestore";
+// 🔥 IMPORTANT: firebaseConfig ko import kiya gaya hai secondary app ke liye 🔥
+import { db, storage, auth, firebaseConfig } from "../firebase-config";
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+// 🔥 IMPORTANT: Firebase Auth ke naye imports 🔥
+import { initializeApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+
 import {
     Store, MapPin, Phone, Search, Plus, Edit3, Trash2,
-    Save, X, Loader2, List, Banknote, Copy, Clock, Layers, Link as LinkIcon,
-    Briefcase, ShieldCheck, User, Scissors, Gift, Megaphone, Percent, Tag
+    Save, X, Loader2, List, Banknote, Copy, Clock, Layers,
+    Briefcase, ShieldCheck, User, Scissors, Gift, Star, Users
 } from "lucide-react";
 import imageCompression from 'browser-image-compression';
 
@@ -16,10 +21,9 @@ export default function ManageSalons() {
 
     // --- STATES FOR EDITING ---
     const [selectedPartner, setSelectedPartner] = useState(null);
-    const [activeTab, setActiveTab] = useState("details"); // 'details' | 'menu' | 'team' | 'offers'
+    const [activeTab, setActiveTab] = useState("details"); 
     const [isSaving, setIsSaving] = useState(false);
     const [editFormData, setEditFormData] = useState(null);
-    const [tempImageUrl, setTempImageUrl] = useState("");
     const [isUploadingImage, setIsUploadingImage] = useState(false);
 
     // --- STATES FOR SERVICES ---
@@ -30,11 +34,16 @@ export default function ManageSalons() {
     const [hasVariants, setHasVariants] = useState(false);
     const [variantList, setVariantList] = useState([{ name: "", price: "", time: "30" }]);
 
-    // --- STATES FOR STYLIST TEAM ---
+    // --- STATES FOR STYLIST PHOTOS (Old Tab) ---
     const [newStylist, setNewStylist] = useState({ name: "", role: "" });
     const [stylistImageFile, setStylistImageFile] = useState(null);
 
-    // 🔥 NEW: STATES FOR OFFERS & ADS ---
+    // 🔥 NEW: STATES FOR TEAM MANAGEMENT (LOGIN ACCESS) 🔥
+    const [newStaff, setNewStaff] = useState({ name: "", phone: "", password: "", role: "manager" });
+    const [staffList, setStaffList] = useState([]); 
+    const [isFetchingStaff, setIsFetchingStaff] = useState(false);
+
+    // --- STATES FOR OFFERS & ADS ---
     const [bannerBadge, setBannerBadge] = useState("");
     const [bannerText, setBannerText] = useState("");
     const [isSavingBanner, setIsSavingBanner] = useState(false);
@@ -52,7 +61,7 @@ export default function ManageSalons() {
         salonName: "", salonType: "Unisex", outletType: "Rent", branches: "0",
         ownerName: "", ownerPhone: "", ownerEmail: "",
         area: "", city: "Ranchi", pincode: "", mapsLink: "", latitude: "", longitude: "",
-        openTime: "10:00 AM", closeTime: "08:00 PM", chairs: "2", weeklyOff: "Mon",
+        openTime: "10:00 AM", closeTime: "08:00 PM", weeklyOff: "Mon",
         gstNumber: "", panNumber: "",
         upiId: "", accountNumber: "", bankName: "", ifscCode: "",
         salonImage: ""
@@ -123,7 +132,9 @@ export default function ManageSalons() {
                     displayName: name,
                     displayPhone: phone,
                     displayArea: area,
-                    displayCity: city
+                    displayCity: city,
+                    rating: d.rating || 0,
+                    ratingCount: d.ratingCount || 0
                 };
             });
             setPartners(list);
@@ -161,6 +172,26 @@ export default function ManageSalons() {
         }
     };
 
+    // 🔥 4. NEW: FETCH STAFF ACCOUNTS 🔥
+    const fetchStaffAccounts = (partnerId) => {
+        setIsFetchingStaff(true);
+        try {
+            const staffRef = collection(db, 'partners', partnerId, 'staff');
+            const unsubscribe = onSnapshot(staffRef, (snapshot) => {
+                const staffMembers = [];
+                snapshot.forEach((doc) => {
+                    staffMembers.push({ id: doc.id, ...doc.data() });
+                });
+                setStaffList(staffMembers);
+                setIsFetchingStaff(false);
+            });
+            return unsubscribe;
+        } catch (error) {
+            console.error(error);
+            setIsFetchingStaff(false);
+        }
+    };
+
     useEffect(() => {
         if (selectedPartner) {
             setEditFormData({
@@ -177,10 +208,10 @@ export default function ManageSalons() {
                 latitude: selectedPartner.basicInfo?.latitude || selectedPartner.lat || "",
                 longitude: selectedPartner.basicInfo?.longitude || selectedPartner.lng || "",
                 images: selectedPartner.images || [],
-                team: selectedPartner.team || [],
+                team: selectedPartner.team || [], 
                 openTime: selectedPartner.operations?.openTime || "10:00 AM",
                 closeTime: selectedPartner.operations?.closeTime || "08:00 PM",
-                chairs: selectedPartner.operations?.chairs || "2",
+                
                 weeklyOff: selectedPartner.operations?.weeklyOff?.[0] || "Mon",
                 gstNumber: selectedPartner.legal?.gstNumber || "",
                 panNumber: selectedPartner.legal?.panNumber || "",
@@ -194,9 +225,8 @@ export default function ManageSalons() {
             setBannerText(selectedPartner.offerText || "");
 
             if (activeTab === 'menu') fetchServices(selectedPartner.id);
-            if (activeTab === 'offers') {
-                const unsub = fetchPromoCodes(selectedPartner.id);
-            }
+            if (activeTab === 'offers') fetchPromoCodes(selectedPartner.id);
+            if (activeTab === 'staff') fetchStaffAccounts(selectedPartner.id);
         }
     }, [selectedPartner, activeTab]);
 
@@ -222,7 +252,7 @@ export default function ManageSalons() {
                 "lng": parseFloat(editFormData.longitude) || 0,
                 "operations.openTime": editFormData.openTime,
                 "operations.closeTime": editFormData.closeTime,
-                "operations.chairs": editFormData.chairs,
+                
                 "operations.weeklyOff": [editFormData.weeklyOff],
                 "legal.gstNumber": editFormData.gstNumber,
                 "legal.panNumber": editFormData.panNumber,
@@ -253,11 +283,10 @@ export default function ManageSalons() {
                 maxWidthOrHeight: 800,   
                 useWebWorker: true,
                 fileType: 'image/webp',  
-                initialQuality: 0.6      
+                initialQuality: 0.75     
             };
             
             const compressedFile = await imageCompression(file, options);
-
             const imageRef = ref(storage, `salons/${selectedPartner.id}/gallery/${Date.now()}_gallery.webp`);
             const uploadResult = await uploadBytes(imageRef, compressedFile);
             const downloadUrl = await getDownloadURL(uploadResult.ref);
@@ -286,12 +315,12 @@ export default function ManageSalons() {
         try {
             let finalImageUrl = "";
             if (imageFile) {
-                const options = {
+               const options = {
                     maxSizeMB: 0.05,
-                    maxWidthOrHeight: 400,
+                    maxWidthOrHeight: 500,
                     useWebWorker: true,
                     fileType: 'image/webp',
-                    initialQuality: 0.5
+                    initialQuality: 0.7
                 };
                 const compressedImage = await imageCompression(imageFile, options);
 
@@ -336,32 +365,108 @@ export default function ManageSalons() {
         setIsSaving(false);
     };
 
+    // 🔥 NEW: TEAM MANAGEMENT (FIREBASE AUTH) LOGIC 🔥
+    const handleAddStaffAccount = async () => {
+        if (!selectedPartner) return alert('System Error: Salon ID is missing!');
+        
+        const { name, phone, password, role } = newStaff;
+        if (!name || !phone || !password) return alert('Please fill all fields');
+        if (phone.length !== 10) return alert('Phone number must be exactly 10 digits.');
+
+        const passwordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])/;
+        if (password.length < 6 || !passwordRegex.test(password)) {
+            return alert('Password must be at least 6 characters long and contain BOTH letters and numbers (e.g., rahul123).');
+        }
+
+        setIsSaving(true);
+        try {
+            // 🔥 TRICK: Naya temporary Firebase instance banao taaki Admin logout na ho
+            const secondaryApp = initializeApp(firebaseConfig, "AdminStaffCreatorApp");
+            const secondaryAuth = getAuth(secondaryApp);
+            
+            const dummyEmail = `${phone}@staff.digisaloon.in`;
+
+            // 1. Firebase Auth mein account banao
+            await createUserWithEmailAndPassword(secondaryAuth, dummyEmail, password);
+            
+            // 2. Turant us temporary instance se logout kar do
+            await signOut(secondaryAuth); 
+
+            // 3. Firestore mein save karo as subcollection (Partner App logic)
+            const newStaffRef = doc(db, 'partners', selectedPartner.id, 'staff', phone);
+
+            await setDoc(newStaffRef, {
+                name: name,
+                phone: phone,
+                authEmail: dummyEmail, 
+                password: password,
+                role: role,
+                salonId: selectedPartner.id,
+                isActive: true,
+                createdAt: serverTimestamp()
+            });
+
+            setNewStaff({ name: "", phone: "", password: "", role: "manager" });
+            alert(`${name} added successfully as ${role}! 🎉`);
+        } catch (error) {
+            console.error("Error adding staff: ", error);
+            if(error.code === 'auth/email-already-in-use') {
+                alert("This phone number is already registered as a staff member.");
+            } else {
+                alert("Something went wrong while creating auth access!");
+            }
+        }
+        setIsSaving(false);
+    };
+
+    const handleToggleStaffStatus = async (staffPhone, currentStatus, staffName) => {
+        const confirmMessage = currentStatus
+            ? `Are you sure you want to BLOCK ${staffName}?`
+            : `Are you sure you want to UNBLOCK ${staffName}?`;
+
+        if (window.confirm(confirmMessage)) {
+            setIsSaving(true);
+            try {
+                const staffDocRef = doc(db, 'partners', selectedPartner.id, 'staff', staffPhone);
+                await updateDoc(staffDocRef, {
+                    isActive: !currentStatus
+                });
+            } catch (error) {
+                console.error("Error updating status: ", error);
+                alert("Failed to change status.");
+            }
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteStaffAccount = async (staffPhone, staffName) => {
+        if (window.confirm(`PERMANENT DELETE: Are you sure you want to permanently delete ${staffName}?`)) {
+            setIsSaving(true);
+            try {
+                await deleteDoc(doc(db, 'partners', selectedPartner.id, 'staff', staffPhone));
+            } catch (error) {
+                console.error("Error deleting staff: ", error);
+                alert("Failed to delete staff account.");
+            }
+            setIsSaving(false);
+        }
+    };
+
+    // OLD STYLIST LOGIC (Kept for reference if needed)
     const handleAddStylist = async () => {
         if (!newStylist.name || !newStylist.role) return alert("Stylist Name and Role are required!");
         setIsSaving(true);
         try {
             let finalImageUrl = "";
             if (stylistImageFile) {
-                const options = {
-                    maxSizeMB: 0.3,
-                    maxWidthOrHeight: 1600,
-                    useWebWorker: true,
-                };
+                const options = { maxSizeMB: 0.1, maxWidthOrHeight: 500, useWebWorker: true, fileType: 'image/webp' };
                 const compressedImage = await imageCompression(stylistImageFile, options);
-
                 const imageRef = ref(storage, `salons/${selectedPartner.id}/stylists/${Date.now()}_stylist.webp`);
                 const uploadResult = await uploadBytes(imageRef, compressedImage);
                 finalImageUrl = await getDownloadURL(uploadResult.ref);
             }
 
-            const newMember = {
-                id: Date.now().toString(),
-                name: newStylist.name,
-                role: newStylist.role,
-                image: finalImageUrl,
-                addedAt: new Date().toISOString()
-            };
-
+            const newMember = { id: Date.now().toString(), name: newStylist.name, role: newStylist.role, image: finalImageUrl, addedAt: new Date().toISOString() };
             const updatedTeam = [...(editFormData.team || []), newMember];
 
             const docRef = doc(db, "partners", selectedPartner.id);
@@ -394,59 +499,36 @@ export default function ManageSalons() {
         setIsSavingBanner(true);
         try {
             const docRef = doc(db, "partners", selectedPartner.id);
-            await updateDoc(docRef, {
-                offerBadge: bannerBadge.trim(),
-                offerText: bannerText.trim()
-            });
+            await updateDoc(docRef, { offerBadge: bannerBadge.trim(), offerText: bannerText.trim() });
             alert("Banner updated successfully on User App! 🎉");
-
             selectedPartner.offerBadge = bannerBadge.trim();
             selectedPartner.offerText = bannerText.trim();
-        } catch (error) {
-            console.error(error);
-            alert("Failed to update banner.");
-        }
+        } catch (error) { console.error(error); alert("Failed to update banner."); }
         setIsSavingBanner(false);
     };
 
     const handleAddPromoCode = async () => {
         if (!selectedPartner) return;
-        if (!newPromo.code.trim() || !newPromo.value || !newPromo.minOrder) {
-            return alert("Code, Value, and Min Order are required.");
-        }
-
+        if (!newPromo.code.trim() || !newPromo.value || !newPromo.minOrder) return alert("Code, Value, and Min Order are required.");
         setIsSavingPromo(true);
         try {
             const cleanCode = newPromo.code.trim().toUpperCase();
             const dataToSave = {
-                discountType: newPromo.type,
-                discountValue: Number(newPromo.value),
-                minOrderValue: Number(newPromo.minOrder),
+                discountType: newPromo.type, discountValue: Number(newPromo.value), minOrderValue: Number(newPromo.minOrder),
                 maxDiscount: newPromo.type === 'percentage' && newPromo.maxDiscount ? Number(newPromo.maxDiscount) : null,
-                isActive: true,
-                salonId: selectedPartner.id,
-                createdAt: serverTimestamp()
+                isActive: true, salonId: selectedPartner.id, createdAt: serverTimestamp()
             };
-
             await setDoc(doc(db, "partners", selectedPartner.id, "internal_offers", cleanCode), dataToSave, { merge: true });
-
             alert("Promo code added successfully!");
             setNewPromo({ code: "", type: "percentage", value: "", minOrder: "", maxDiscount: "" });
-        } catch (error) {
-            console.error(error);
-            alert("Failed to add promo code.");
-        }
+        } catch (error) { console.error(error); alert("Failed to add promo code."); }
         setIsSavingPromo(false);
     };
 
     const handleDeletePromo = async (promoId) => {
         if (!window.confirm(`Are you sure you want to delete promo code: ${promoId}?`)) return;
-        try {
-            await deleteDoc(doc(db, "partners", selectedPartner.id, "internal_offers", promoId));
-        } catch (error) {
-            console.error(error);
-            alert("Failed to delete promo code.");
-        }
+        try { await deleteDoc(doc(db, "partners", selectedPartner.id, "internal_offers", promoId)); }
+        catch (error) { console.error(error); alert("Failed to delete promo code."); }
     };
 
     const handleCreateSalon = async () => {
@@ -457,29 +539,19 @@ export default function ManageSalons() {
                 basicInfo: { salonName: newSalonData.salonName, salonType: newSalonData.salonType, outletType: newSalonData.outletType, branches: newSalonData.branches, latitude: parseFloat(newSalonData.latitude) || 0, longitude: parseFloat(newSalonData.longitude) || 0 },
                 ownerInfo: { name: newSalonData.ownerName, phone: newSalonData.ownerPhone, email: newSalonData.ownerEmail, partnerId: Date.now().toString() },
                 address: { area: newSalonData.area, city: newSalonData.city, pincode: newSalonData.pincode, mapsLink: newSalonData.mapsLink },
-                lat: parseFloat(newSalonData.latitude) || 0,
-                lng: parseFloat(newSalonData.longitude) || 0,
-                operations: { openTime: newSalonData.openTime, closeTime: newSalonData.closeTime, chairs: newSalonData.chairs, weeklyOff: [newSalonData.weeklyOff], facilities: ["AC", "WiFi"] },
+                lat: parseFloat(newSalonData.latitude) || 0, lng: parseFloat(newSalonData.longitude) || 0,
+                operations: { openTime: newSalonData.openTime, closeTime: newSalonData.closeTime, weeklyOff: [newSalonData.weeklyOff], facilities: ["AC", "WiFi"] },
                 legal: { gstRegistered: newSalonData.gstNumber ? "Yes" : "No", gstNumber: newSalonData.gstNumber, panNumber: newSalonData.panNumber },
                 bankDetails: { upiId: newSalonData.upiId, accountNumber: newSalonData.accountNumber, ifscCode: newSalonData.ifscCode, bankName: newSalonData.bankName },
                 images: newSalonData.salonImage ? [newSalonData.salonImage] : [],
-                salonName: newSalonData.salonName,
-                isActive: true,
-                isLive: false,
-                isShopOpen: false,
-                verifiedByAdmin: false,
-                status: "pending",
-                isBlocked: false,
-                walletBalance: 0,
-                createdAt: new Date(),
-                team: []
+                salonName: newSalonData.salonName, isActive: true, isLive: false, isShopOpen: false, verifiedByAdmin: false, status: "pending", isBlocked: false, walletBalance: 0, createdAt: new Date(), team: []
             };
 
             await addDoc(collection(db, "partners"), newDoc);
             alert("Salon Created & Set to Pending Verification! ⏳");
             setIsAddingSalon(false);
             fetchPartners();
-            setNewSalonData({ salonName: "", salonType: "Unisex", outletType: "Rent", branches: "0", ownerName: "", ownerPhone: "", ownerEmail: "", area: "", city: "Ranchi", pincode: "", mapsLink: "", latitude: "", longitude: "", openTime: "10:00 AM", closeTime: "08:00 PM", chairs: "2", weeklyOff: "Mon", gstNumber: "", panNumber: "", upiId: "", accountNumber: "", bankName: "", ifscCode: "", salonImage: "" });
+            setNewSalonData({ salonName: "", salonType: "Unisex", outletType: "Rent", branches: "0", ownerName: "", ownerPhone: "", ownerEmail: "", area: "", city: "Ranchi", pincode: "", mapsLink: "", latitude: "", longitude: "", openTime: "10:00 AM", closeTime: "08:00 PM", weeklyOff: "Mon", gstNumber: "", panNumber: "", upiId: "", accountNumber: "", bankName: "", ifscCode: "", salonImage: "" });
         } catch (e) { console.error(e); alert("Creation Failed"); }
         setIsSaving(false);
     };
@@ -518,17 +590,28 @@ export default function ManageSalons() {
                                     <div className="h-12 w-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 font-bold text-xl uppercase shrink-0">{partner.displayName?.[0] || "S"}</div>
                                     <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase shrink-0 ${partner.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{partner.isActive !== false ? 'Active' : 'Inactive'}</span>
                                 </div>
-                                {/* 🔥 FIX: TRUNCATE ADDED TO CARDS */}
+                                
                                 <h3 className="font-bold text-lg text-gray-900 mb-1 truncate" title={partner.displayName}>{partner.displayName}</h3>
+                                
+                                <div className="flex items-center gap-1.5 mb-2">
+                                    <div className="flex items-center text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded text-xs font-bold border border-yellow-100">
+                                        <Star size={12} className="fill-yellow-500 mr-1" />
+                                        {Number(partner.rating || 0).toFixed(1)}
+                                    </div>
+                                    <span className="text-xs font-medium text-gray-400">
+                                        ({partner.ratingCount || 0} Reviews)
+                                    </span>
+                                </div>
+                                
                                 <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-1 truncate w-full" title={`${partner.displayArea}, ${partner.displayCity}`}>
                                     <MapPin size={14} className="shrink-0"/> <span className="truncate">{partner.displayArea}, {partner.displayCity}</span>
                                 </p>
                                 <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4 truncate w-full" title={partner.displayPhone}>
                                     <Phone size={14} className="shrink-0"/> <span className="truncate">{partner.displayPhone}</span>
                                 </p>
-                                <div className="flex gap-2 border-t border-gray-100 pt-4 mt-auto">
-                                    <button onClick={() => { setSelectedPartner(partner); setActiveTab('details'); }} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-bold flex items-center justify-center gap-2"><Edit3 size={16} /> Edit Info</button>
-                                    <button onClick={() => { setSelectedPartner(partner); setActiveTab('menu'); }} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold flex items-center justify-center gap-2"><List size={16} /> Menu</button>
+                                <div className="flex gap-2 border-t border-gray-100 pt-4 mt-auto flex-wrap">
+                                    <button onClick={() => { setSelectedPartner(partner); setActiveTab('details'); }} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-bold flex items-center justify-center gap-1"><Edit3 size={16} /> Edit</button>
+                                    <button onClick={() => { setSelectedPartner(partner); setActiveTab('menu'); }} className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold flex items-center justify-center gap-1"><List size={16} /> Menu</button>
                                 </div>
                             </div>
                         </div>
@@ -551,7 +634,6 @@ export default function ManageSalons() {
                                 <div className="bg-white p-5 rounded-xl border border-gray-200">
                                     <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Store size={18} className="text-blue-500" /> Basic Info</h3>
                                     <div className="space-y-3">
-                                        {/* 🔥 FIX: MAX LENGTH ADDED TO INPUTS */}
                                         <div><label className="text-xs font-bold text-gray-500">Salon Name*</label><input maxLength={60} className="w-full p-2 border rounded-lg" value={newSalonData.salonName} onChange={e => setNewSalonData({ ...newSalonData, salonName: e.target.value })} /></div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div><label className="text-xs font-bold text-gray-500">Type</label><select className="w-full p-2 border rounded-lg" value={newSalonData.salonType} onChange={e => setNewSalonData({ ...newSalonData, salonType: e.target.value })}><option>Unisex</option><option>Male</option><option>Female</option></select></div>
@@ -564,7 +646,6 @@ export default function ManageSalons() {
                                 <div className="bg-white p-5 rounded-xl border border-gray-200">
                                     <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-purple-500" /> Owner & Location</h3>
                                     <div className="space-y-3">
-                                        {/* 🔥 FIX: MAX LENGTH ADDED TO INPUTS */}
                                         <div><label className="text-xs font-bold text-gray-500">Owner Name</label><input maxLength={50} className="w-full p-2 border rounded-lg" value={newSalonData.ownerName} onChange={e => setNewSalonData({ ...newSalonData, ownerName: e.target.value })} /></div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div><label className="text-xs font-bold text-gray-500">Phone*</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.ownerPhone} onChange={e => setNewSalonData({ ...newSalonData, ownerPhone: e.target.value })} /></div>
@@ -591,7 +672,7 @@ export default function ManageSalons() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label className="text-xs font-bold text-gray-500">Open Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.openTime} onChange={e => setNewSalonData({ ...newSalonData, openTime: e.target.value })} /></div>
                                         <div><label className="text-xs font-bold text-gray-500">Close Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.closeTime} onChange={e => setNewSalonData({ ...newSalonData, closeTime: e.target.value })} /></div>
-                                        <div><label className="text-xs font-bold text-gray-500">Chairs</label><input maxLength={5} className="w-full p-2 border rounded-lg" value={newSalonData.chairs} onChange={e => setNewSalonData({ ...newSalonData, chairs: e.target.value })} /></div>
+                                        
                                         <div><label className="text-xs font-bold text-gray-500">Weekly Off</label><select className="w-full p-2 border rounded-lg" value={newSalonData.weeklyOff} onChange={e => setNewSalonData({ ...newSalonData, weeklyOff: e.target.value })}><option>Mon</option><option>Tue</option><option>Sun</option><option>None</option></select></div>
                                     </div>
                                 </div>
@@ -621,7 +702,7 @@ export default function ManageSalons() {
                 </div>
             )}
 
-            {/* EDIT / MENU / TEAM / OFFERS MODAL */}
+            {/* EDIT / MENU / TEAM / OFFERS / STAFF MODAL */}
             {selectedPartner && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl flex overflow-hidden">
@@ -630,14 +711,18 @@ export default function ManageSalons() {
                         <div className="w-72 bg-gray-50 border-r border-gray-200 p-6 flex flex-col gap-2 shrink-0 overflow-y-auto">
                             <div className="mb-6">
                                 <div className="h-16 w-16 bg-white border border-gray-200 rounded-full flex items-center justify-center text-2xl font-bold text-gray-400 shadow-sm mb-3 shrink-0">{selectedPartner.displayName?.[0]}</div>
-                                {/* 🔥 FIX: SIDEBAR NAME BREAK ALL 🔥 */}
                                 <h2 className="font-bold text-gray-900 leading-tight break-all" title={selectedPartner.displayName}>{selectedPartner.displayName}</h2>
                                 <div className="mt-2 p-2 bg-gray-200 rounded text-[10px] font-mono break-all text-gray-600 select-all cursor-pointer hover:bg-gray-300" title="Click to copy" onClick={() => { navigator.clipboard.writeText(selectedPartner.id); alert("ID Copied!") }}>ID: {selectedPartner.id} <Copy size={10} className="inline ml-1 shrink-0" /></div>
                             </div>
                             <button onClick={() => setActiveTab('details')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'details' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Store size={18} /> Salon Details</button>
                             <button onClick={() => setActiveTab('menu')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'menu' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><List size={18} /> Service Menu</button>
-                            <button onClick={() => setActiveTab('team')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'team' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Briefcase size={18} /> Stylist Team</button>
+                            <button onClick={() => setActiveTab('team')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'team' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Briefcase size={18} /> Stylist Photos</button>
                             <button onClick={() => setActiveTab('offers')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'offers' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:bg-gray-100'}`}><Gift size={18} /> Offers & Ads</button>
+                            
+                            {/* 🔥 NEW TAB BUTTON: TEAM MANAGEMENT 🔥 */}
+                            <button onClick={() => setActiveTab('staff')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'staff' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:bg-gray-100'}`}>
+                                <Users size={18} /> Team Management
+                            </button>
                         </div>
 
                         <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -645,8 +730,9 @@ export default function ManageSalons() {
                                 <h3 className="text-xl font-bold text-gray-800">
                                     {activeTab === 'details' && 'Edit Salon Details'}
                                     {activeTab === 'menu' && 'Manage Services'}
-                                    {activeTab === 'team' && 'Stylist Details'}
+                                    {activeTab === 'team' && 'Stylist Photo Gallery'}
                                     {activeTab === 'offers' && 'Offers & Promo Codes'}
+                                    {activeTab === 'staff' && 'Team Login Management'}
                                 </h3>
                                 <button onClick={() => setSelectedPartner(null)} className="p-2 hover:bg-gray-100 rounded-full"><X size={24} className="text-gray-500" /></button>
                             </div>
@@ -713,7 +799,6 @@ export default function ManageSalons() {
                                             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Store size={18} className="text-blue-500" /> Basic Info</h4>
                                                 <div className="space-y-3">
-                                                    {/* 🔥 FIX: MAX LENGTH */}
                                                     <div><label className="text-xs font-bold text-gray-500">Salon Name</label><input maxLength={60} className="w-full p-2 border rounded-lg" value={editFormData.salonName} onChange={e => setEditFormData({ ...editFormData, salonName: e.target.value })} /></div>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <div><label className="text-xs font-bold text-gray-500">Type</label><select className="w-full p-2 border rounded-lg" value={editFormData.salonType} onChange={e => setEditFormData({ ...editFormData, salonType: e.target.value })}><option>Unisex</option><option>Male</option><option>Female</option></select></div>
@@ -726,7 +811,6 @@ export default function ManageSalons() {
                                             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                                                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-purple-500" /> Owner & Location</h4>
                                                 <div className="space-y-3">
-                                                    {/* 🔥 FIX: MAX LENGTH */}
                                                     <div><label className="text-xs font-bold text-gray-500">Owner Name</label><input maxLength={50} className="w-full p-2 border rounded-lg" value={editFormData.ownerName} onChange={e => setEditFormData({ ...editFormData, ownerName: e.target.value })} /></div>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <div><label className="text-xs font-bold text-gray-500">Phone</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.ownerPhone} onChange={e => setEditFormData({ ...editFormData, ownerPhone: e.target.value })} /></div>
@@ -753,7 +837,7 @@ export default function ManageSalons() {
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div><label className="text-xs font-bold text-gray-500">Open Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.openTime} onChange={e => setEditFormData({ ...editFormData, openTime: e.target.value })} /></div>
                                                     <div><label className="text-xs font-bold text-gray-500">Close Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.closeTime} onChange={e => setEditFormData({ ...editFormData, closeTime: e.target.value })} /></div>
-                                                    <div><label className="text-xs font-bold text-gray-500">Chairs</label><input maxLength={5} className="w-full p-2 border rounded-lg" value={editFormData.chairs} onChange={e => setEditFormData({ ...editFormData, chairs: e.target.value })} /></div>
+                                                   
                                                     <div><label className="text-xs font-bold text-gray-500">Weekly Off</label><select className="w-full p-2 border rounded-lg" value={editFormData.weeklyOff} onChange={e => setEditFormData({ ...editFormData, weeklyOff: e.target.value })}><option>Mon</option><option>Tue</option><option>Sun</option><option>None</option></select></div>
                                                 </div>
                                             </div>
@@ -794,7 +878,6 @@ export default function ManageSalons() {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start mb-4">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-blue-500 uppercase mb-1 block">Service Name</label>
-                                                    {/* 🔥 FIX: MAX LENGTH 60 */}
                                                     <input maxLength={60} type="text" placeholder="e.g. Hair Spa" className="w-full p-2.5 rounded-lg border border-blue-200 outline-none" value={newService.name} onChange={e => setNewService({ ...newService, name: e.target.value })} />
                                                 </div>
                                                 <div>
@@ -828,7 +911,6 @@ export default function ManageSalons() {
                                                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">Service Variants</label>
                                                     {variantList.map((v, index) => (
                                                         <div key={index} className="flex gap-2 mb-2 items-center">
-                                                            {/* 🔥 FIX: min-w-0 for flex inputs, MAX LENGTH 40 */}
                                                             <input maxLength={40} type="text" placeholder="Name (e.g. Gold)" className="flex-1 p-2 text-sm border rounded-lg bg-gray-50 min-w-0" value={v.name} onChange={(e) => handleVariantChange(index, 'name', e.target.value)} />
                                                             <input type="number" placeholder="Price" className="w-24 p-2 text-sm border rounded-lg bg-gray-50 shrink-0" value={v.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)} />
                                                             <div className="relative w-24 shrink-0">
@@ -860,7 +942,6 @@ export default function ManageSalons() {
                                                     serviceList.map((service) => (
                                                         <div key={service.id} className="p-4 hover:bg-gray-50 group transition-colors">
                                                             <div className="flex items-center justify-between gap-4">
-                                                                {/* 🔥 FIX: flex-1 aur min-w-0 lagaya jisse text box truncate ho sake 🔥 */}
                                                                 <div className="flex items-center gap-4 flex-1 min-w-0">
                                                                     <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 overflow-hidden border shrink-0">
                                                                         {service.image ? (
@@ -870,7 +951,6 @@ export default function ManageSalons() {
                                                                         )}
                                                                     </div>
                                                                     <div className="flex-1 min-w-0">
-                                                                        {/* 🔥 FIX: Service Name Truncate 🔥 */}
                                                                         <h5 className="font-bold text-gray-900 truncate" title={service.name || service.serviceName}>{service.name || service.serviceName}</h5>
                                                                         <div className="flex gap-2 text-xs mt-1">
                                                                             {service.category && (
@@ -894,7 +974,6 @@ export default function ManageSalons() {
                                                                     <p className="text-[10px] uppercase font-bold text-gray-400 mb-2">Options Available</p>
                                                                     {service.variants.map((v, idx) => (
                                                                         <div key={idx} className="flex justify-between py-1 border-b border-gray-200 last:border-0 gap-4">
-                                                                            {/* 🔥 FIX: Variant Name Truncate 🔥 */}
                                                                             <span className="text-gray-700 font-medium truncate flex-1 min-w-0" title={v.name}>{v.name}</span>
                                                                             <div className="flex gap-3 shrink-0">
                                                                                 <span className="text-xs text-gray-500 flex items-center gap-1"><Clock size={10} /> {v.time}m</span>
@@ -912,16 +991,15 @@ export default function ManageSalons() {
                                     </div>
                                 )}
 
-                                {/* ---------------- TEAM TAB ---------------- */}
+                                {/* ---------------- STYLIST GALLERY TAB (Old) ---------------- */}
                                 {activeTab === 'team' && (
                                     <div className="space-y-6">
                                         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-                                            <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-blue-500" /> Add New Staff</h4>
+                                            <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><User size={18} className="text-blue-500" /> Add Stylist Photo</h4>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Full Name</label>
-                                                    {/* 🔥 FIX: MAX LENGTH */}
                                                     <input maxLength={40} type="text" placeholder="e.g. Rahul Mahto" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" value={newStylist.name} onChange={e => setNewStylist({ ...newStylist, name: e.target.value })} />
                                                 </div>
                                                 <div>
@@ -936,17 +1014,17 @@ export default function ManageSalons() {
                                             </div>
 
                                             <button onClick={handleAddStylist} disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-lg font-bold flex justify-center items-center shadow-md transition-all">
-                                                {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />} Add to Team
+                                                {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />} Add Photo
                                             </button>
                                         </div>
 
                                         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                                             <div className="p-4 bg-gray-50 border-b border-gray-200 font-bold text-gray-500 text-xs uppercase tracking-wider flex justify-between">
-                                                <span>Current Stylists ({(editFormData?.team || []).length} members)</span>
+                                                <span>Stylist Photos ({(editFormData?.team || []).length})</span>
                                             </div>
                                             <div className="divide-y divide-gray-100">
                                                 {!(editFormData?.team) || editFormData.team.length === 0 ? (
-                                                    <div className="p-10 text-center text-gray-400 italic">No stylists found. Add your team!</div>
+                                                    <div className="p-10 text-center text-gray-400 italic">No stylist photos added.</div>
                                                 ) : (
                                                     editFormData.team.map((stylist) => (
                                                         <div key={stylist.id} className="p-4 hover:bg-gray-50 flex items-center justify-between group transition-colors gap-4">
@@ -958,7 +1036,6 @@ export default function ManageSalons() {
                                                                         <User size={20} />
                                                                     )}
                                                                 </div>
-                                                                {/* 🔥 FIX: Stylist Name & Role Truncate 🔥 */}
                                                                 <div className="flex-1 min-w-0">
                                                                     <h5 className="font-bold text-gray-900 truncate" title={stylist.name}>{stylist.name}</h5>
                                                                     <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate" title={stylist.role}>
@@ -966,7 +1043,7 @@ export default function ManageSalons() {
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <button onClick={() => handleDeleteStylist(stylist.id)} className="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors shrink-0" title="Remove Stylist">
+                                                            <button onClick={() => handleDeleteStylist(stylist.id)} className="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors shrink-0" title="Remove Photo">
                                                                 <Trash2 size={18} />
                                                             </button>
                                                         </div>
@@ -977,7 +1054,7 @@ export default function ManageSalons() {
                                     </div>
                                 )}
 
-                                {/* 🔥 ---------------- NEW OFFERS & ADS TAB ---------------- */}
+                                {/* ---------------- OFFERS & ADS TAB ---------------- */}
                                 {activeTab === 'offers' && (
                                     <div className="space-y-6">
 
@@ -993,7 +1070,6 @@ export default function ManageSalons() {
                                                 </div>
                                                 <div>
                                                     <label className="text-[10px] font-bold text-red-500 uppercase mb-1 block">Detailed Offer Text</label>
-                                                    {/* 🔥 FIX: MAX LENGTH 60 */}
                                                     <input maxLength={60} type="text" placeholder="e.g. FLAT 20% OFF on haircut..." className="w-full p-2.5 rounded-lg border border-red-200 outline-none bg-white focus:ring-2 focus:ring-red-400" value={bannerText} onChange={e => setBannerText(e.target.value)} />
                                                 </div>
                                             </div>
@@ -1009,7 +1085,6 @@ export default function ManageSalons() {
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Coupon Code</label>
-                                                    {/* 🔥 FIX: MAX LENGTH 20 */}
                                                     <input maxLength={20} type="text" placeholder="e.g. FESTIVE50" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 uppercase" value={newPromo.code} onChange={e => setNewPromo({ ...newPromo, code: e.target.value.toUpperCase() })} />
                                                 </div>
                                                 <div>
@@ -1058,7 +1133,6 @@ export default function ManageSalons() {
                                                                     <Banknote size={20} />
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
-                                                                    {/* 🔥 FIX: Promo Code Truncate 🔥 */}
                                                                     <h5 className="font-bold text-gray-900 text-lg tracking-wider truncate" title={promo.id}>{promo.id}</h5>
                                                                     <div className="flex flex-col gap-1 text-xs text-gray-500 mt-1">
                                                                         <span className="font-medium text-green-600">
@@ -1080,6 +1154,132 @@ export default function ManageSalons() {
 
                                     </div>
                                 )}
+
+                                {/* 🔥 ---------------- NEW TAB: TEAM MANAGEMENT (LOGIN ACCESS) ---------------- 🔥 */}
+                                {activeTab === 'staff' && (
+                                    <div className="space-y-6">
+                                        
+                                        {/* FORM: ADD NEW TEAM MEMBER */}
+                                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                                            <h4 className="font-bold text-gray-900 mb-4 text-lg">Add New Team Member</h4>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Full Name</label>
+                                                    <input 
+                                                        type="text" placeholder="e.g. Rahul Sharma" maxLength={40}
+                                                        className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500"
+                                                        value={newStaff.name} onChange={e => setNewStaff({ ...newStaff, name: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Phone Number (Login ID)</label>
+                                                    <input 
+                                                        type="tel" placeholder="10 digit mobile number" maxLength={10}
+                                                        className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500"
+                                                        value={newStaff.phone} onChange={e => setNewStaff({ ...newStaff, phone: e.target.value.replace(/[^0-9]/g, '') })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Login Password</label>
+                                                    <input 
+                                                        type="text" placeholder="e.g. rahul123" maxLength={40}
+                                                        className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500"
+                                                        value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
+                                                    />
+                                                    <p className="text-[10px] text-gray-400 mt-1">Mix of letters & numbers (min 6 chars).</p>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Role</label>
+                                                    <select 
+                                                        className="w-full p-2.5 rounded-lg border border-gray-200 outline-none bg-gray-50 text-gray-500 cursor-not-allowed"
+                                                        value={newStaff.role} disabled
+                                                    >
+                                                        <option value="manager">Manager (Only Bookings & Billing)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <button 
+                                                onClick={handleAddStaffAccount} disabled={isSaving}
+                                                className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold flex justify-center items-center shadow-md transition-all w-fit"
+                                            >
+                                                {isSaving ? <Loader2 size={18} className="animate-spin mr-2" /> : null} Create Login Access
+                                            </button>
+                                        </div>
+
+                                        {/* TABLE: ACTIVE STAFF ACCOUNTS */}
+                                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6">
+                                            <h4 className="font-bold text-gray-900 mb-6 text-lg">Active Staff Accounts</h4>
+                                            
+                                            {isFetchingStaff ? (
+                                                <div className="flex justify-center py-10"><Loader2 className="animate-spin text-gray-400" /></div>
+                                            ) : staffList.length === 0 ? (
+                                                <div className="text-center py-10 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                                    <p className="text-gray-500 font-medium">No staff added yet.</p>
+                                                    <p className="text-sm text-gray-400 mt-1">Add someone above to give them portal access.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                                                    <table className="w-full text-left table-auto">
+                                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                                            <tr>
+                                                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                                                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Phone (Login ID)</th>
+                                                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Password</th>
+                                                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
+                                                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                                                <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {staffList.map((staff) => (
+                                                                <tr key={staff.id} className={`hover:bg-gray-50/50 transition-colors ${!staff.isActive ? 'opacity-60 bg-gray-50/80' : ''}`}>
+                                                                    <td className="p-4 font-bold text-gray-900">{staff.name}</td>
+                                                                    <td className="p-4 font-medium text-gray-600">{staff.phone}</td>
+                                                                    <td className="p-4 text-gray-500 font-mono text-sm">{staff.password}</td>
+                                                                    <td className="p-4">
+                                                                        <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-[11px] font-bold uppercase tracking-wide">
+                                                                            {staff.role}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="p-4">
+                                                                        {staff.isActive ? (
+                                                                            <span className="text-emerald-700 font-bold text-xs bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">Active</span>
+                                                                        ) : (
+                                                                            <span className="text-red-700 font-bold text-xs bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">Blocked</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="p-4">
+                                                                        <div className="flex items-center justify-center gap-6">
+                                                                            {/* iOS Style Custom Toggle Switch */}
+                                                                            <button
+                                                                                onClick={() => handleToggleStaffStatus(staff.phone, staff.isActive, staff.name)}
+                                                                                title={staff.isActive ? "Block User" : "Unblock User"}
+                                                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${staff.isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                                                                            >
+                                                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${staff.isActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                                            </button>
+
+                                                                            <button 
+                                                                                onClick={() => handleDeleteStaffAccount(staff.phone, staff.name)}
+                                                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all" 
+                                                                                title="Delete Permanently"
+                                                                            >
+                                                                                <Trash2 size={20} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                             </div>
                         </div>
                     </div>

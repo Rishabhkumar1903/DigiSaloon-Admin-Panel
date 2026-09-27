@@ -5,8 +5,7 @@ import { onAuthStateChanged, signOut, signInWithEmailAndPassword } from "firebas
 import { doc, getDoc } from "firebase/firestore";
 
 // Icons Import
-// 🔥 FIX 1: 'User' icon add kiya import list mein
-import { LayoutDashboard, Users, Scissors, CreditCard, Image as ImageIcon, LogOut, Key, Calendar, Store, User, Tag } from "lucide-react";
+import { LayoutDashboard, Users, Scissors, CreditCard, Image as ImageIcon, LogOut, Key, Calendar, Store, User, Tag, AlertOctagon } from "lucide-react";
 
 // Pages Import
 import Partners from "./pages/Partners";
@@ -18,6 +17,8 @@ import Dashboard from "./pages/Dashboard";
 import UserPage from "./pages/Users"; // 🔥 Suggestion: File ka naam Users.js rakha tha humne last time, check kar lena
 import Banners from "./pages/Banners";
 import Broadcast from "./pages/Broadcast"; // Broadcast page import kiya hai, lekin route mein add karna baad mein decide karenge.
+import SupportTickets from "./pages/SupportTickets";
+import ReportedReviews from "./pages/ReportedReviews";
 
 import Billing from "./pages/Billing";
 import GlobalOffers from "./pages/GlobalOffers"; // Global Offers page import kiya hai, lekin route mein add karna baad mein decide karenge.
@@ -71,30 +72,44 @@ const DashboardLayout = ({ children }) => {
     { name: "Manage Salons", icon: <Store size={20}/>, path: "/manage-salons" }, 
     { name: "Billing", icon: <CreditCard size={20}/>, path: "/billing" },
     { name: "Broadcast", icon: <Ticket size={20}/>, path: "/broadcast" },
-    // 🔥 FIX: Icon ab sahi import ho gaya hai
     { name: "Users", icon: <User size={20}/>, path: "/users" }, 
     { name: "Banners", icon: <ImageIcon size={20}/>, path: "/banners" },
     { name: "Global Offers", icon: <Tag size={20}/>, path: "/global-offers" },
-    
+    { name: "Support Tickets", icon: <Ticket size={20}/>, path: "/support-tickets" },
+    { name: "Reported Reviews", icon: <AlertOctagon size={20}/>, path: "/reported-reviews" },
   ];
 
   return (
     <div className="flex min-h-screen bg-gray-50 text-gray-800">
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col fixed h-full z-10">
-        <div className="p-6">
+      
+      {/* MAIN SIDEBAR CONTAINER: h-screen rakha taaki full height le */}
+      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col fixed h-screen z-10">
+        
+        {/* 1. TOP LOGO (Fixed) */}
+        <div className="p-6 shrink-0">
           <h1 className="text-2xl font-black text-red-600 italic">DigiSaloon</h1>
         </div>
-        <nav className="flex-1 px-4 space-y-2 mt-4">
+        
+        {/* 2. 🔥 MENU ITEMS (SCROLLABLE) 🔥 
+            flex-1 aur overflow-y-auto lagaya hai. Ab sirf ye list upar-neeche scroll hogi */}
+        <nav className="flex-1 px-4 space-y-1 pb-4 overflow-y-auto hide-scrollbar">
           {menuItems.map((item) => (
             <Link key={item.name} to={item.path} className="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all font-semibold text-gray-600">
               {item.icon} {item.name}
             </Link>
           ))}
         </nav>
-        <button onClick={() => auth.signOut()} className="m-6 p-3 flex items-center gap-3 text-gray-500 font-bold hover:text-red-600 transition-all border-t border-gray-100 pt-6">
-          <LogOut size={20}/> Logout
-        </button>
+        
+        {/* 3. BOTTOM LOGOUT BUTTON (Fixed) 
+            Ispe bg-white rakha hai taaki scrolling items iske peeche chup jayein */}
+        <div className="p-4 shrink-0 border-t border-gray-100 bg-white">
+          <button onClick={() => auth.signOut()} className="w-full flex items-center justify-center gap-3 p-3 text-gray-500 font-bold hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+            <LogOut size={20}/> Logout
+          </button>
+        </div>
+
       </aside>
+      
       <main className="flex-1 p-8 ml-64 overflow-y-auto min-h-screen">
         {children}
       </main>
@@ -151,6 +166,8 @@ export default function App() {
               
               <Route path="/manage-salons" element={<ManageSalons />} />
               <Route path="/banners" element={<Banners />} />
+              <Route path="/Support-tickets" element={<SupportTickets />} />
+              <Route path="/reported-reviews" element={<ReportedReviews />} />
               
               {/* 🔥 FIX: Path aur Component Name match kar lena */}
               <Route path="/users" element={<UserPage />} /> 

@@ -3,7 +3,7 @@ import { db, storage } from "../firebase-config";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
-    Trash2, Loader2, Smartphone, Gift
+    Trash2, Loader2, Smartphone, Gift,
 } from "lucide-react";
 
 export default function Banners() {

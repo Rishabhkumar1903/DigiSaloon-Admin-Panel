@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { db } from "../firebase-config";
-import { collection, getDocs, doc, getDoc, updateDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 import { 
   CheckCircle, Search, MapPin, Phone, 
   X, Loader2, Building2, Ticket, Users, Clock, Edit
@@ -25,6 +25,8 @@ export default function Subscriptions() {
   const [modalData, setModalData] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [newExpiryDate, setNewExpiryDate] = useState("");
+  
+  const [newPlanType, setNewPlanType] = useState("Monthly");
 
   // 1. FETCH DATA
   const loadData = async () => {
@@ -134,6 +136,13 @@ export default function Subscriptions() {
           defaultDate.setMonth(defaultDate.getMonth() + 1); // Default +1 month
       }
       setNewExpiryDate(defaultDate.toISOString().split('T')[0]);
+      
+      let currentPlan = salon.subscriptionType;
+      if (!currentPlan || currentPlan === "Not Set" || currentPlan.includes("Founder")) {
+          currentPlan = "Monthly"; // Backup default
+      }
+      setNewPlanType(currentPlan);
+
       setModalData(salon);
   };
 
@@ -146,25 +155,14 @@ export default function Subscriptions() {
           const newDateObj = new Date(newExpiryDate);
           newDateObj.setHours(23, 59, 59); // End of day
 
-          // 1. Salon ka main status update karo
+          // 🔥 BAS YAHAN CHANGE KIYA HAI: Ab sirf Date aur Plan update hoga, koi payment record add nahi hoga 🔥
           await updateDoc(doc(db, "partners", modalData.id), {
               subscriptionActive: true,
               subscriptionValidUntil: newDateObj,
-              subscriptionType: "Monthly"
+              subscriptionType: newPlanType 
           });
 
-          // 2. 🔥 NAYA CODE: Billing Ledger mein record save karo
-          await addDoc(collection(db, "partners", modalData.id, "subscription_history"), {
-              salonName: modalData.name,
-              planType: "Monthly", 
-              amountPaid: 999, // 👈 Subscription ki fees yahan set kar lena (e.g. 999 ya 1499)
-              activatedAt: new Date(),
-              validUntil: newDateObj,
-              paymentMethod: "Manual (Admin)",
-              transactionId: "TXN" + Date.now().toString().slice(-6) // Random TXN ID generate hoga
-          });
-
-          alert("Subscription Updated & Billed Successfully! ✅");
+          alert("Subscription Updated Successfully! ✅");
           setModalData(null);
           loadData();
       } catch (error) {
@@ -249,7 +247,7 @@ export default function Subscriptions() {
         </div>
 
         <div className="overflow-x-auto">
-            <table className="w-full text-left table-fixed"> {/* 🔥 FIX 1: table-fixed lagaya */}
+            <table className="w-full text-left table-fixed"> 
                 <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                         <th className="p-5 text-xs font-bold text-gray-500 uppercase tracking-wider w-2/5">Salon Details</th>
@@ -263,7 +261,6 @@ export default function Subscriptions() {
                         <tr key={salon.id} className="hover:bg-blue-50/10 transition-colors">
                             <td className="p-5 pr-8">
                                 <div className="flex flex-col gap-1.5">
-                                    {/* 🔥 FIX 2: truncate aur max-w lagaya taaki text na faile 🔥 */}
                                     <div className="font-bold text-gray-900 text-lg truncate w-full" title={salon.name}>
                                         {salon.name}
                                     </div>
@@ -275,10 +272,9 @@ export default function Subscriptions() {
                                         {salon.area !== "Unknown" && (
                                             <div 
                                                 className="flex items-center gap-1 text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 border border-gray-200 shrink-0 max-w-[120px]"
-                                                title={salon.area} // Hover karne par poora area dikhega
+                                                title={salon.area}
                                             >
                                                 <MapPin size={10} className="shrink-0"/> 
-                                                {/* 🔥 FIX: truncate lagaya taaki lamba word aage se kat jaye 🔥 */}
                                                 <span className="truncate">{salon.area}</span>
                                             </div>
                                         )}
@@ -318,7 +314,6 @@ export default function Subscriptions() {
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                 <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                     
-                    {/* 🔥 FIX: Header layout fixed with flex-1, min-w-0, and truncate 🔥 */}
                     <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center gap-4">
                         <div className="flex-1 min-w-0">
                             <h3 className="text-xl font-bold text-gray-900">Manage Subscription</h3>
@@ -339,6 +334,17 @@ export default function Subscriptions() {
                         </div>
 
                         <div className="mb-6">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Plan Type</label>
+                            <select 
+                                className="w-full p-3 mb-5 border border-gray-300 bg-white rounded-xl text-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
+                                value={newPlanType}
+                                onChange={(e) => setNewPlanType(e.target.value)}
+                            >
+                                <option value="Monthly">Monthly</option>
+                                <option value="Quarterly">Quarterly</option>
+                                <option value="Yearly">Yearly</option>
+                            </select>
+
                             <label className="block text-sm font-bold text-gray-700 mb-2">Set New Expiry Date</label>
                             <input 
                                 type="date" 
@@ -346,7 +352,7 @@ export default function Subscriptions() {
                                 value={newExpiryDate}
                                 onChange={(e) => setNewExpiryDate(e.target.value)}
                             />
-                            <p className="text-xs text-gray-500 mt-2">Setting a future date will mark the subscription as 'Active' and 'Monthly'.</p>
+                            <p className="text-xs text-gray-500 mt-2">Setting a future date will mark the subscription as 'Active' with the selected plan.</p>
                         </div>
 
                         <div className="flex gap-3">
