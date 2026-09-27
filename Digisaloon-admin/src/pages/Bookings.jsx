@@ -185,8 +185,14 @@ export default function Bookings() {
   const currentStats = () => {
       const books = getFilteredBookings();
       const revenue = books.reduce((sum, b) => sum + b.totalAmount, 0);
-      const commission = books.reduce((sum, b) => sum + (b.bookingType !== 'Walk-in' ? b.adminCommission : 0), 0);
-      return { revenue, commission, count: books.length };
+      
+      // 🔥 NAYA JADOO: Advance Paid ka total nikalna 🔥
+      const advanceCollected = books.reduce((sum, b) => {
+          // Walk-in bookings pe advance nahi hota, toh unhe chhod do
+          return sum + (b.bookingType !== 'Walk-in' ? Number(b.advancePaid || 49) : 0);
+      }, 0);
+      
+      return { revenue, advanceCollected, count: books.length };
   };
 
   const paginatedBookings = getFilteredBookings().slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -262,8 +268,9 @@ export default function Bookings() {
                     <p className="text-3xl font-black text-gray-900">₹{currentStats().revenue.toLocaleString()}</p>
                 </div>
                 <div className="bg-gradient-to-br from-purple-50 to-white p-5 rounded-2xl border border-purple-100 shadow-sm">
-                    <p className="text-purple-600 font-bold text-xs uppercase tracking-wider mb-1">My Commission</p>
-                    <p className="text-3xl font-black text-gray-900">₹{currentStats().commission.toLocaleString()}</p>
+                    {/* 🔥 NAYA FIX: Naam aur variable change kar diya 🔥 */}
+                    <p className="text-purple-600 font-bold text-xs uppercase tracking-wider mb-1">Advance Collected</p>
+                    <p className="text-3xl font-black text-gray-900">₹{currentStats().advanceCollected.toLocaleString()}</p>
                 </div>
                 <div className="bg-gradient-to-br from-gray-50 to-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                     <p className="text-gray-500 font-bold text-xs uppercase tracking-wider mb-1">Total Bookings</p>

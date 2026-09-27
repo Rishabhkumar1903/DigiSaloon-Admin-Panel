@@ -5,7 +5,7 @@ import { onAuthStateChanged, signOut, signInWithEmailAndPassword } from "firebas
 import { doc, getDoc } from "firebase/firestore";
 
 // Icons Import
-import { LayoutDashboard, Users, Scissors, CreditCard, Image as ImageIcon, LogOut, Key, Calendar, Store, User, Tag, AlertOctagon } from "lucide-react";
+import { LayoutDashboard, Users, Scissors, CreditCard, Image as ImageIcon, LogOut, Key, Calendar, Store, User, Tag, AlertOctagon, Wallet } from "lucide-react";
 
 // Pages Import
 import Partners from "./pages/Partners";
@@ -19,6 +19,7 @@ import Banners from "./pages/Banners";
 import Broadcast from "./pages/Broadcast"; // Broadcast page import kiya hai, lekin route mein add karna baad mein decide karenge.
 import SupportTickets from "./pages/SupportTickets";
 import ReportedReviews from "./pages/ReportedReviews";
+import Settlements from "./pages/Settlements";
 
 import Billing from "./pages/Billing";
 import GlobalOffers from "./pages/GlobalOffers"; // Global Offers page import kiya hai, lekin route mein add karna baad mein decide karenge.
@@ -67,6 +68,7 @@ const DashboardLayout = ({ children }) => {
     { name: "Dashboard", icon: <LayoutDashboard size={20}/>, path: "/" }, 
     { name: "Partners", icon: <Scissors size={20}/>, path: "/partners" },
     { name: "Credentials", icon: <Key size={20}/>, path: "/credentials" },
+    { name: "Settlements", icon: <Wallet size={20}/>, path: "/settlements" }, 
     { name: "Bookings", icon: <CreditCard size={20}/>, path: "/bookings" },
     { name: "Subscriptions", icon: <Calendar size={20}/>, path: "/subscriptions" },
     { name: "Manage Salons", icon: <Store size={20}/>, path: "/manage-salons" }, 
@@ -168,6 +170,7 @@ export default function App() {
               <Route path="/banners" element={<Banners />} />
               <Route path="/Support-tickets" element={<SupportTickets />} />
               <Route path="/reported-reviews" element={<ReportedReviews />} />
+              <Route path="/settlements" element={<Settlements />} />
               
               {/* 🔥 FIX: Path aur Component Name match kar lena */}
               <Route path="/users" element={<UserPage />} /> 
