@@ -21,7 +21,7 @@ export default function ManageSalons() {
 
     // --- STATES FOR EDITING ---
     const [selectedPartner, setSelectedPartner] = useState(null);
-    const [activeTab, setActiveTab] = useState("details"); 
+    const [activeTab, setActiveTab] = useState("details");
     const [isSaving, setIsSaving] = useState(false);
     const [editFormData, setEditFormData] = useState(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -40,7 +40,7 @@ export default function ManageSalons() {
 
     // 🔥 NEW: STATES FOR TEAM MANAGEMENT (LOGIN ACCESS) 🔥
     const [newStaff, setNewStaff] = useState({ name: "", phone: "", password: "", role: "manager" });
-    const [staffList, setStaffList] = useState([]); 
+    const [staffList, setStaffList] = useState([]);
     const [isFetchingStaff, setIsFetchingStaff] = useState(false);
 
     // --- STATES FOR OFFERS & ADS ---
@@ -71,7 +71,7 @@ export default function ManageSalons() {
         try {
             const servicesSnapshot = await getDocs(collection(db, "partners", salonId, "services_menu"));
             const services = servicesSnapshot.docs.map(doc => doc.data());
-            
+
             let startingPrice = 9999;
             let keywords = [];
 
@@ -87,7 +87,7 @@ export default function ManageSalons() {
                 }
             });
 
-            if (startingPrice === 9999) startingPrice = 150; 
+            if (startingPrice === 9999) startingPrice = 150;
             const uniqueKeywords = [...new Set(keywords)];
 
             const partnerRef = doc(db, "partners", salonId);
@@ -208,10 +208,10 @@ export default function ManageSalons() {
                 latitude: selectedPartner.basicInfo?.latitude || selectedPartner.lat || "",
                 longitude: selectedPartner.basicInfo?.longitude || selectedPartner.lng || "",
                 images: selectedPartner.images || [],
-                team: selectedPartner.team || [], 
+                team: selectedPartner.team || [],
                 openTime: selectedPartner.operations?.openTime || "10:00 AM",
                 closeTime: selectedPartner.operations?.closeTime || "08:00 PM",
-                
+
                 weeklyOff: selectedPartner.operations?.weeklyOff?.[0] || "Mon",
                 gstNumber: selectedPartner.legal?.gstNumber || "",
                 panNumber: selectedPartner.legal?.panNumber || "",
@@ -252,7 +252,7 @@ export default function ManageSalons() {
                 "lng": parseFloat(editFormData.longitude) || 0,
                 "operations.openTime": editFormData.openTime,
                 "operations.closeTime": editFormData.closeTime,
-                
+
                 "operations.weeklyOff": [editFormData.weeklyOff],
                 "legal.gstNumber": editFormData.gstNumber,
                 "legal.panNumber": editFormData.panNumber,
@@ -279,13 +279,13 @@ export default function ManageSalons() {
         setIsUploadingImage(true);
         try {
             const options = {
-                maxSizeMB: 0.06,         
-                maxWidthOrHeight: 800,   
+                maxSizeMB: 0.06,
+                maxWidthOrHeight: 800,
                 useWebWorker: true,
-                fileType: 'image/webp',  
-                initialQuality: 0.75     
+                fileType: 'image/webp',
+                initialQuality: 0.75
             };
-            
+
             const compressedFile = await imageCompression(file, options);
             const imageRef = ref(storage, `salons/${selectedPartner.id}/gallery/${Date.now()}_gallery.webp`);
             const uploadResult = await uploadBytes(imageRef, compressedFile);
@@ -315,7 +315,7 @@ export default function ManageSalons() {
         try {
             let finalImageUrl = "";
             if (imageFile) {
-               const options = {
+                const options = {
                     maxSizeMB: 0.05,
                     maxWidthOrHeight: 500,
                     useWebWorker: true,
@@ -341,7 +341,7 @@ export default function ManageSalons() {
                 variants: hasVariants ? variantList.map(v => ({ name: v.name, price: v.price.toString(), time: v.time.toString() })) : []
             };
             await addDoc(collection(db, "partners", selectedPartner.id, "services_menu"), payload);
-            
+
             await updateSalonMainProfile(selectedPartner.id);
 
             fetchServices(selectedPartner.id);
@@ -356,10 +356,10 @@ export default function ManageSalons() {
     const handleDeleteService = async (serviceId) => {
         if (!window.confirm("Delete this service?")) return;
         setIsSaving(true);
-        try { 
-            await deleteDoc(doc(db, "partners", selectedPartner.id, "services_menu", serviceId)); 
+        try {
+            await deleteDoc(doc(db, "partners", selectedPartner.id, "services_menu", serviceId));
             await updateSalonMainProfile(selectedPartner.id);
-            fetchServices(selectedPartner.id); 
+            fetchServices(selectedPartner.id);
         }
         catch (e) { alert("Failed to delete"); }
         setIsSaving(false);
@@ -368,7 +368,7 @@ export default function ManageSalons() {
     // 🔥 NEW: TEAM MANAGEMENT (FIREBASE AUTH) LOGIC 🔥
     const handleAddStaffAccount = async () => {
         if (!selectedPartner) return alert('System Error: Salon ID is missing!');
-        
+
         const { name, phone, password, role } = newStaff;
         if (!name || !phone || !password) return alert('Please fill all fields');
         if (phone.length !== 10) return alert('Phone number must be exactly 10 digits.');
@@ -383,14 +383,14 @@ export default function ManageSalons() {
             // 🔥 TRICK: Naya temporary Firebase instance banao taaki Admin logout na ho
             const secondaryApp = initializeApp(firebaseConfig, "AdminStaffCreatorApp");
             const secondaryAuth = getAuth(secondaryApp);
-            
+
             const dummyEmail = `${phone}@staff.digisaloon.in`;
 
             // 1. Firebase Auth mein account banao
             await createUserWithEmailAndPassword(secondaryAuth, dummyEmail, password);
-            
+
             // 2. Turant us temporary instance se logout kar do
-            await signOut(secondaryAuth); 
+            await signOut(secondaryAuth);
 
             // 3. Firestore mein save karo as subcollection (Partner App logic)
             const newStaffRef = doc(db, 'partners', selectedPartner.id, 'staff', phone);
@@ -398,7 +398,7 @@ export default function ManageSalons() {
             await setDoc(newStaffRef, {
                 name: name,
                 phone: phone,
-                authEmail: dummyEmail, 
+                authEmail: dummyEmail,
                 password: password,
                 role: role,
                 salonId: selectedPartner.id,
@@ -410,7 +410,7 @@ export default function ManageSalons() {
             alert(`${name} added successfully as ${role}! 🎉`);
         } catch (error) {
             console.error("Error adding staff: ", error);
-            if(error.code === 'auth/email-already-in-use') {
+            if (error.code === 'auth/email-already-in-use') {
                 alert("This phone number is already registered as a staff member.");
             } else {
                 alert("Something went wrong while creating auth access!");
@@ -590,9 +590,9 @@ export default function ManageSalons() {
                                     <div className="h-12 w-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 font-bold text-xl uppercase shrink-0">{partner.displayName?.[0] || "S"}</div>
                                     <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase shrink-0 ${partner.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{partner.isActive !== false ? 'Active' : 'Inactive'}</span>
                                 </div>
-                                
-                                <h3 className="font-bold text-lg text-gray-900 mb-1 truncate" title={partner.displayName}>{partner.displayName}</h3>
-                                
+
+                                <h3 className="font-bold text-lg text-gray-900 mb-1 line-clamp-3 break-all" title={partner.displayName}>{partner.displayName}</h3>
+
                                 <div className="flex items-center gap-1.5 mb-2">
                                     <div className="flex items-center text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded text-xs font-bold border border-yellow-100">
                                         <Star size={12} className="fill-yellow-500 mr-1" />
@@ -602,12 +602,12 @@ export default function ManageSalons() {
                                         ({partner.ratingCount || 0} Reviews)
                                     </span>
                                 </div>
-                                
+
                                 <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-1 truncate w-full" title={`${partner.displayArea}, ${partner.displayCity}`}>
-                                    <MapPin size={14} className="shrink-0"/> <span className="truncate">{partner.displayArea}, {partner.displayCity}</span>
+                                    <MapPin size={14} className="shrink-0" /> <span className="truncate">{partner.displayArea}, {partner.displayCity}</span>
                                 </p>
                                 <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-4 truncate w-full" title={partner.displayPhone}>
-                                    <Phone size={14} className="shrink-0"/> <span className="truncate">{partner.displayPhone}</span>
+                                    <Phone size={14} className="shrink-0" /> <span className="truncate">{partner.displayPhone}</span>
                                 </p>
                                 <div className="flex gap-2 border-t border-gray-100 pt-4 mt-auto flex-wrap">
                                     <button onClick={() => { setSelectedPartner(partner); setActiveTab('details'); }} className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-bold flex items-center justify-center gap-1"><Edit3 size={16} /> Edit</button>
@@ -672,7 +672,7 @@ export default function ManageSalons() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label className="text-xs font-bold text-gray-500">Open Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.openTime} onChange={e => setNewSalonData({ ...newSalonData, openTime: e.target.value })} /></div>
                                         <div><label className="text-xs font-bold text-gray-500">Close Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={newSalonData.closeTime} onChange={e => setNewSalonData({ ...newSalonData, closeTime: e.target.value })} /></div>
-                                        
+
                                         <div><label className="text-xs font-bold text-gray-500">Weekly Off</label><select className="w-full p-2 border rounded-lg" value={newSalonData.weeklyOff} onChange={e => setNewSalonData({ ...newSalonData, weeklyOff: e.target.value })}><option>Mon</option><option>Tue</option><option>Sun</option><option>None</option></select></div>
                                     </div>
                                 </div>
@@ -718,7 +718,7 @@ export default function ManageSalons() {
                             <button onClick={() => setActiveTab('menu')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'menu' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><List size={18} /> Service Menu</button>
                             <button onClick={() => setActiveTab('team')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'team' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Briefcase size={18} /> Stylist Photos</button>
                             <button onClick={() => setActiveTab('offers')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'offers' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:bg-gray-100'}`}><Gift size={18} /> Offers & Ads</button>
-                            
+
                             {/* 🔥 NEW TAB BUTTON: TEAM MANAGEMENT 🔥 */}
                             <button onClick={() => setActiveTab('staff')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'staff' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:bg-gray-100'}`}>
                                 <Users size={18} /> Team Management
@@ -837,7 +837,7 @@ export default function ManageSalons() {
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div><label className="text-xs font-bold text-gray-500">Open Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.openTime} onChange={e => setEditFormData({ ...editFormData, openTime: e.target.value })} /></div>
                                                     <div><label className="text-xs font-bold text-gray-500">Close Time</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.closeTime} onChange={e => setEditFormData({ ...editFormData, closeTime: e.target.value })} /></div>
-                                                   
+
                                                     <div><label className="text-xs font-bold text-gray-500">Weekly Off</label><select className="w-full p-2 border rounded-lg" value={editFormData.weeklyOff} onChange={e => setEditFormData({ ...editFormData, weeklyOff: e.target.value })}><option>Mon</option><option>Tue</option><option>Sun</option><option>None</option></select></div>
                                                 </div>
                                             </div>
@@ -1039,7 +1039,7 @@ export default function ManageSalons() {
                                                                 <div className="flex-1 min-w-0">
                                                                     <h5 className="font-bold text-gray-900 truncate" title={stylist.name}>{stylist.name}</h5>
                                                                     <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5 truncate" title={stylist.role}>
-                                                                        <Scissors size={12} className="shrink-0"/> <span className="truncate">{stylist.role}</span>
+                                                                        <Scissors size={12} className="shrink-0" /> <span className="truncate">{stylist.role}</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1158,15 +1158,15 @@ export default function ManageSalons() {
                                 {/* 🔥 ---------------- NEW TAB: TEAM MANAGEMENT (LOGIN ACCESS) ---------------- 🔥 */}
                                 {activeTab === 'staff' && (
                                     <div className="space-y-6">
-                                        
+
                                         {/* FORM: ADD NEW TEAM MEMBER */}
                                         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
                                             <h4 className="font-bold text-gray-900 mb-4 text-lg">Add New Team Member</h4>
-                                            
+
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Full Name</label>
-                                                    <input 
+                                                    <input
                                                         type="text" placeholder="e.g. Rahul Sharma" maxLength={40}
                                                         className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500"
                                                         value={newStaff.name} onChange={e => setNewStaff({ ...newStaff, name: e.target.value })}
@@ -1174,7 +1174,7 @@ export default function ManageSalons() {
                                                 </div>
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Phone Number (Login ID)</label>
-                                                    <input 
+                                                    <input
                                                         type="tel" placeholder="10 digit mobile number" maxLength={10}
                                                         className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500"
                                                         value={newStaff.phone} onChange={e => setNewStaff({ ...newStaff, phone: e.target.value.replace(/[^0-9]/g, '') })}
@@ -1182,7 +1182,7 @@ export default function ManageSalons() {
                                                 </div>
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Login Password</label>
-                                                    <input 
+                                                    <input
                                                         type="text" placeholder="e.g. rahul123" maxLength={40}
                                                         className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500"
                                                         value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
@@ -1191,7 +1191,7 @@ export default function ManageSalons() {
                                                 </div>
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-500 uppercase mb-1.5 block">Role</label>
-                                                    <select 
+                                                    <select
                                                         className="w-full p-2.5 rounded-lg border border-gray-200 outline-none bg-gray-50 text-gray-500 cursor-not-allowed"
                                                         value={newStaff.role} disabled
                                                     >
@@ -1200,7 +1200,7 @@ export default function ManageSalons() {
                                                 </div>
                                             </div>
 
-                                            <button 
+                                            <button
                                                 onClick={handleAddStaffAccount} disabled={isSaving}
                                                 className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold flex justify-center items-center shadow-md transition-all w-fit"
                                             >
@@ -1211,7 +1211,7 @@ export default function ManageSalons() {
                                         {/* TABLE: ACTIVE STAFF ACCOUNTS */}
                                         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6">
                                             <h4 className="font-bold text-gray-900 mb-6 text-lg">Active Staff Accounts</h4>
-                                            
+
                                             {isFetchingStaff ? (
                                                 <div className="flex justify-center py-10"><Loader2 className="animate-spin text-gray-400" /></div>
                                             ) : staffList.length === 0 ? (
@@ -1261,9 +1261,9 @@ export default function ManageSalons() {
                                                                                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${staff.isActive ? 'translate-x-6' : 'translate-x-1'}`} />
                                                                             </button>
 
-                                                                            <button 
+                                                                            <button
                                                                                 onClick={() => handleDeleteStaffAccount(staff.phone, staff.name)}
-                                                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all" 
+                                                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
                                                                                 title="Delete Permanently"
                                                                             >
                                                                                 <Trash2 size={20} />

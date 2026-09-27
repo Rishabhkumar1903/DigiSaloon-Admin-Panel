@@ -237,13 +237,14 @@ export default function Bookings() {
                               <div className="bg-blue-50 text-blue-700 p-3.5 rounded-xl shrink-0">{view === 'areas' ? <Map size={26}/> : <Store size={26}/>}</div>
                               <ChevronRight className="text-gray-300 group-hover:text-blue-600 shrink-0"/>
                           </div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1 truncate w-full" title={view === 'areas' ? item.areaName : item.name}>{view === 'areas' ? item.areaName : item.name}</h3>
+                         {/* 🔥 truncate hata kar line-clamp-3 aur break-all lagaya 🔥 */}
+<h3 className="text-xl font-bold text-gray-900 mb-1 line-clamp-3 break-all w-full" title={view === 'areas' ? item.areaName : item.name}>{view === 'areas' ? item.areaName : item.name}</h3>
                           <p className="text-sm text-gray-500 mb-6 truncate w-full" title={view === 'areas' ? `${item.salons.length} Salons` : `ID: ${item.id}`}>{view === 'areas' ? `${item.salons.length} Salons` : `ID: ${item.id.slice(0,12)}...`}</p>
                         </div>
 
                         <div className="flex gap-8 border-t pt-6 mt-auto">
                             <div><p className="text-xs font-bold text-gray-400 uppercase">Bookings</p><p className="text-2xl font-bold text-gray-800">{item.totalBookings}</p></div>
-                            <div><p className="text-xs font-bold text-gray-400 uppercase">Revenue</p><p className="text-2xl font-bold text-emerald-600 truncate max-w-[100px]" title={`₹${item.totalRevenue.toLocaleString()}`}>₹{item.totalRevenue.toLocaleString()}</p></div>
+                            <div><p className="text-xs font-bold text-gray-400 uppercase">Revenue</p><p className="text-2xl font-bold text-emerald-600 break-all" title={`₹${item.totalRevenue.toLocaleString()}`}>₹{item.totalRevenue.toLocaleString()}</p></div>
                         </div>
                     </div>
                 ))}
