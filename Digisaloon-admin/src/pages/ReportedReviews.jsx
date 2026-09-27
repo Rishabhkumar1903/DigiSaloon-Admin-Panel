@@ -76,10 +76,12 @@ const ReportedReviews = () => {
         try {
             const statusToSet = type === 'delete' ? 'review_deleted' : 'dismissed_by_admin';
 
-            // Agar delete karna hai, toh actual reviews collection se review udane ka logic yahan daal sakte ho
-            // if (type === 'delete') {
-            //     await deleteDoc(doc(db, 'partners', report.partnerId, 'reviews', report.reviewId));
-            // }
+            // 🔥 NAYA JADOO: Original review document ka status bhi update karo 🔥
+            if (type === 'delete') {
+                await updateDoc(doc(db, 'partners', report.partnerId, 'reviews', report.reviewId), {
+                    status: 'review_deleted'
+                });
+            }
 
             // Report document ko update karo
             await updateDoc(doc(db, 'reported_reviews', report.id), {
