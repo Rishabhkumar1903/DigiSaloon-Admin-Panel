@@ -403,7 +403,7 @@ export default function ManageSalons() {
             setHasVariants(false);
             setVariantList([{ name: "", price: "", time: "30" }]);
             
-            alert("Service Saved Successfully with GST! ✅");
+            alert("Service Saved Successfully! ✅");
         } catch (e) { 
             console.error(e);
             alert("Failed to add service: " + e.message); 
