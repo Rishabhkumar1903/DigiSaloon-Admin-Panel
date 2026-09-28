@@ -395,16 +395,66 @@ export default function Partners() {
                   </div>
                 </section>
 
-                <section className="bg-green-50 p-6 rounded-2xl border border-green-100">
+                {/* 🔥 UPDATED: Legal & Bank Section 🔥 */}
+                <section className="bg-green-50 p-6 rounded-2xl border border-green-100 flex flex-col">
                   <h3 className="text-lg font-bold text-green-800 mb-4">🏦 Legal & Bank</h3>
-                  <div className="space-y-3 text-sm">
+                  <div className="space-y-3 text-sm flex-1">
                     <p><span className="font-bold text-gray-600">GST Registered:</span> {selectedPartner.legal?.gstRegistered || "N/A"}</p>
-                    <p><span className="font-bold text-gray-600">GST No:</span> {selectedPartner.legal?.gstNumber || "N/A"}</p>
+                    
+                    {/* Agar GST Registered hai tabhi Number aur Rate dikhayenge */}
+                    {selectedPartner.legal?.gstRegistered === 'Yes' && (
+                      <>
+                        <p className="break-all"><span className="font-bold text-gray-600">GST No:</span> {selectedPartner.legal?.gstNumber || "N/A"}</p>
+                        <p><span className="font-bold text-gray-600">GST Rate:</span> {selectedPartner.legal?.gstRate ? `${selectedPartner.legal.gstRate}%` : "18%"}</p>
+                      </>
+                    )}
+                    
                     <p><span className="font-bold text-gray-600">PAN No:</span> {selectedPartner.legal?.panNumber || "N/A"}</p>
+                    <p className="break-all"><span className="font-bold text-gray-600">UPI ID:</span> {selectedPartner.bankDetails?.upiId || "N/A"}</p>
+                    
                     <div className="border-t border-green-200 my-2 pt-2">
                       <p><span className="font-bold text-gray-600">Bank:</span> {selectedPartner.bankDetails?.bankName || "N/A"}</p>
+                      {/* 🔥 FIX: Account Name yahan add kar diya 🔥 */}
+                      <p><span className="font-bold text-gray-600">Acc Name:</span> {selectedPartner.bankDetails?.accountName || "N/A"}</p>
                       <p><span className="font-bold text-gray-600">Acc No:</span> {selectedPartner.bankDetails?.accountNumber || "N/A"}</p>
                       <p><span className="font-bold text-gray-600">IFSC:</span> {selectedPartner.bankDetails?.ifscCode || "N/A"}</p>
+                    </div>
+                  </div>
+
+                  {/* 🔥 NAYA JADOO: Documents Preview Section 🔥 */}
+                  <div className="mt-4 pt-4 border-t border-green-200 grid grid-cols-2 gap-3">
+                    {/* PAN Card Photo */}
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">PAN Card Photo</span>
+                      {selectedPartner.legal?.panUrl ? (
+                        <a href={selectedPartner.legal.panUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-lg border border-green-200 shadow-sm" title="Click to view full image">
+                          <img src={selectedPartner.legal.panUrl} alt="PAN Card" className="h-16 w-full object-cover mix-blend-multiply bg-white" />
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Eye size={16} className="text-white" />
+                          </div>
+                        </a>
+                      ) : (
+                        <div className="h-16 w-full bg-green-100/50 rounded-lg flex items-center justify-center border border-dashed border-green-200">
+                          <span className="text-[10px] text-gray-400 italic">Not uploaded</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Passbook / Cheque Photo */}
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Passbook / Cheque</span>
+                      {selectedPartner.bankDetails?.passbookUrl ? (
+                        <a href={selectedPartner.bankDetails.passbookUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-lg border border-green-200 shadow-sm" title="Click to view full image">
+                          <img src={selectedPartner.bankDetails.passbookUrl} alt="Passbook" className="h-16 w-full object-cover mix-blend-multiply bg-white" />
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Eye size={16} className="text-white" />
+                          </div>
+                        </a>
+                      ) : (
+                        <div className="h-16 w-full bg-green-100/50 rounded-lg flex items-center justify-center border border-dashed border-green-200">
+                          <span className="text-[10px] text-gray-400 italic">Not uploaded</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>
