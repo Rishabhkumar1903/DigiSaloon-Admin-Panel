@@ -9,7 +9,8 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
     Store, MapPin, Phone, Search, Plus, Edit3, Trash2,
     Save, X, Loader2, List, Banknote, Copy, Clock, Layers,
-    Briefcase, ShieldCheck, User, Scissors, Gift, Star, Users
+    Briefcase, ShieldCheck, User, Scissors, Gift, Star, Users,
+    Landmark, FileText, UploadCloud // 🔥 NAYA
 } from "lucide-react";
 import imageCompression from 'browser-image-compression';
 
@@ -215,12 +216,18 @@ export default function ManageSalons() {
                 openTime: selectedPartner.operations?.openTime || "10:00 AM",
                 closeTime: selectedPartner.operations?.closeTime || "08:00 PM",
                 weeklyOff: selectedPartner.operations?.weeklyOff?.[0] || "Mon",
-                gstNumber: selectedPartner.legal?.gstNumber || "",
-                panNumber: selectedPartner.legal?.panNumber || "",
-                upiId: selectedPartner.bankDetails?.upiId || "",
-                accountNumber: selectedPartner.bankDetails?.accountNumber || "",
-                bankName: selectedPartner.bankDetails?.bankName || "",
-                ifscCode: selectedPartner.bankDetails?.ifscCode || ""
+                // Existing fields ke sath inko replace/add karo:
+            gstNumber: selectedPartner.legal?.gstNumber || "",
+            panNumber: selectedPartner.legal?.panNumber || "",
+            gstRate: selectedPartner.legal?.gstRate || "18",
+            gstRegistered: selectedPartner.legal?.gstRegistered === "Yes",
+            panUrl: selectedPartner.legal?.panUrl || "",
+            upiId: selectedPartner.bankDetails?.upiId || "",
+            accountNumber: selectedPartner.bankDetails?.accountNumber || "",
+            accountName: selectedPartner.bankDetails?.accountName || "",
+            bankName: selectedPartner.bankDetails?.bankName || "",
+            ifscCode: selectedPartner.bankDetails?.ifscCode || "",
+            passbookUrl: selectedPartner.bankDetails?.passbookUrl || ""
             });
 
             setBannerBadge(selectedPartner.offerBadge || "");
@@ -257,11 +264,15 @@ export default function ManageSalons() {
                 "operations.weeklyOff": [editFormData.weeklyOff],
                 "legal.gstNumber": editFormData.gstNumber,
                 "legal.panNumber": editFormData.panNumber,
-                "legal.gstRegistered": editFormData.gstNumber ? "Yes" : "No",
+                "legal.gstRegistered": editFormData.gstRegistered ? "Yes" : "No",
+                "legal.gstRate": Number(editFormData.gstRate || 18),
+                "legal.panUrl": editFormData.panUrl,
                 "bankDetails.upiId": editFormData.upiId,
                 "bankDetails.accountNumber": editFormData.accountNumber,
+                "bankDetails.accountName": editFormData.accountName,
                 "bankDetails.bankName": editFormData.bankName,
                 "bankDetails.ifscCode": editFormData.ifscCode,
+                "bankDetails.passbookUrl": editFormData.passbookUrl,
                 salonName: editFormData.salonName,
                 images: editFormData.images || []
             };
@@ -290,6 +301,27 @@ export default function ManageSalons() {
         } catch (error) {
             console.error("Error uploading image:", error);
             alert("Failed to upload image.");
+        }
+        setIsUploadingImage(false);
+    };
+
+    const handleUploadBankDoc = async (e, type) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setIsUploadingImage(true);
+        try {
+            const options = { maxSizeMB: 0.1, maxWidthOrHeight: 1000, useWebWorker: true, fileType: 'image/webp' };
+            const compressedFile = await imageCompression(file, options);
+            const path = type === 'pan' ? `salons/${selectedPartner.id}/legal/pan_${Date.now()}.webp` : `salons/${selectedPartner.id}/bank/passbook_${Date.now()}.webp`;
+            const docRef = ref(storage, path);
+            const uploadResult = await uploadBytes(docRef, compressedFile);
+            const downloadUrl = await getDownloadURL(uploadResult.ref);
+
+            if (type === 'pan') setEditFormData(prev => ({ ...prev, panUrl: downloadUrl }));
+            if (type === 'passbook') setEditFormData(prev => ({ ...prev, passbookUrl: downloadUrl }));
+        } catch (error) {
+            console.error("Error uploading document:", error);
+            alert("Failed to upload document.");
         }
         setIsUploadingImage(false);
     };
@@ -731,6 +763,7 @@ export default function ManageSalons() {
                                 <div className="mt-2 p-2 bg-gray-200 rounded text-[10px] font-mono break-all text-gray-600 select-all cursor-pointer hover:bg-gray-300" title="Click to copy" onClick={() => { navigator.clipboard.writeText(selectedPartner.id); alert("ID Copied!") }}>ID: {selectedPartner.id} <Copy size={10} className="inline ml-1 shrink-0" /></div>
                             </div>
                             <button onClick={() => setActiveTab('details')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'details' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Store size={18} /> Salon Details</button>
+                            <button onClick={() => setActiveTab('bank')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'bank' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:bg-gray-100'}`}><Landmark size={18} /> Bank & KYC</button>
                             <button onClick={() => setActiveTab('menu')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'menu' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><List size={18} /> Service Menu</button>
                             <button onClick={() => setActiveTab('team')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'team' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}><Briefcase size={18} /> Stylist Photos</button>
                             <button onClick={() => setActiveTab('offers')} className={`p-3 rounded-xl text-left text-sm font-bold flex items-center gap-3 transition-all ${activeTab === 'offers' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:bg-gray-100'}`}><Gift size={18} /> Offers & Ads</button>
@@ -820,20 +853,7 @@ export default function ManageSalons() {
                                                     <div><label className="text-xs font-bold text-gray-500">Weekly Off</label><select className="w-full p-2 border rounded-lg" value={editFormData.weeklyOff} onChange={e => setEditFormData({ ...editFormData, weeklyOff: e.target.value })}><option>Mon</option><option>Tue</option><option>Sun</option><option>None</option></select></div>
                                                 </div>
                                             </div>
-                                            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                                                <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-green-500" /> Legal & Bank</h4>
-                                                <div className="space-y-3">
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div><label className="text-xs font-bold text-gray-500">GST No.</label><input maxLength={20} className="w-full p-2 border rounded-lg" value={editFormData.gstNumber} onChange={e => setEditFormData({ ...editFormData, gstNumber: e.target.value })} /></div>
-                                                        <div><label className="text-xs font-bold text-gray-500">PAN No.</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.panNumber} onChange={e => setEditFormData({ ...editFormData, panNumber: e.target.value })} /></div>
-                                                    </div>
-                                                    <div><label className="text-xs font-bold text-gray-500">UPI ID</label><input maxLength={40} className="w-full p-2 border rounded-lg" value={editFormData.upiId} onChange={e => setEditFormData({ ...editFormData, upiId: e.target.value })} /></div>
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div><label className="text-xs font-bold text-gray-500">Account No.</label><input maxLength={25} className="w-full p-2 border rounded-lg" value={editFormData.accountNumber} onChange={e => setEditFormData({ ...editFormData, accountNumber: e.target.value })} /></div>
-                                                        <div><label className="text-xs font-bold text-gray-500">IFSC</label><input maxLength={15} className="w-full p-2 border rounded-lg" value={editFormData.ifscCode} onChange={e => setEditFormData({ ...editFormData, ifscCode: e.target.value })} /></div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            
                                         </div>
                                         <div className="flex justify-end">
                                             <button onClick={handleUpdateDetails} disabled={isSaving} className="px-8 py-3 font-bold text-white bg-gray-900 rounded-xl hover:bg-black flex items-center gap-2 shadow-lg">{isSaving ? <Loader2 className="animate-spin" /> : <Save size={20} />} Save All Changes</button>
@@ -1154,6 +1174,93 @@ export default function ManageSalons() {
                                                     </table>
                                                 </div>
                                             )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 🔥 ---------------- NEW TAB: BANK & KYC ---------------- 🔥 */}
+                                {activeTab === 'bank' && editFormData && (
+                                    <div className="space-y-8 animate-in fade-in duration-200">
+                                        
+                                        {/* Bank Account Info */}
+                                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                                            <h4 className="font-bold text-gray-900 mb-6 text-lg border-b border-gray-100 pb-3">Bank Account Info</h4>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                                <div className="space-y-4">
+                                                    <div><label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">Account Holder Name</label><input maxLength={50} className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50" value={editFormData.accountName} onChange={e => setEditFormData({ ...editFormData, accountName: e.target.value })} /></div>
+                                                    <div><label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">Account Number</label><input maxLength={25} className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50" value={editFormData.accountNumber} onChange={e => setEditFormData({ ...editFormData, accountNumber: e.target.value.replace(/\D/g, '') })} /></div>
+                                                    <div><label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">IFSC Code</label><input maxLength={15} className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 uppercase" value={editFormData.ifscCode} onChange={e => setEditFormData({ ...editFormData, ifscCode: e.target.value.toUpperCase() })} /></div>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">Passbook / Cancelled Cheque</label>
+                                                    <div className="relative w-full flex-1 min-h-[160px] rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center overflow-hidden hover:border-green-500 transition-colors">
+                                                        <input type="file" accept="image/*" onChange={(e) => handleUploadBankDoc(e, 'passbook')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                                                        {editFormData.passbookUrl ? (
+                                                            <img src={editFormData.passbookUrl} className="w-full h-full object-contain p-2 mix-blend-multiply" alt="Passbook" />
+                                                        ) : (
+                                                            <>
+                                                                <UploadCloud size={28} className="text-gray-400 mb-2" />
+                                                                <span className="text-sm font-bold text-gray-500">Upload Image</span>
+                                                            </>
+                                                        )}
+                                                        {isUploadingImage && <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-20"><Loader2 className="animate-spin text-green-600" size={24} /></div>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Tax & KYC Info */}
+                                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                                            <h4 className="font-bold text-gray-900 mb-6 text-lg border-b border-gray-100 pb-3">Tax & KYC Info</h4>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                                <div className="space-y-4">
+                                                    <div><label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">PAN Card Number</label><input maxLength={10} className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 uppercase" value={editFormData.panNumber} onChange={e => setEditFormData({ ...editFormData, panNumber: e.target.value.toUpperCase() })} /></div>
+                                                    
+                                                    <div className="flex justify-between items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                                        <div>
+                                                            <h3 className="text-[13px] font-bold text-gray-800">GST Registered?</h3>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input type="checkbox" className="sr-only peer" checked={editFormData.gstRegistered} onChange={(e) => setEditFormData({ ...editFormData, gstRegistered: e.target.checked })} />
+                                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                                        </label>
+                                                    </div>
+
+                                                    {editFormData.gstRegistered && (
+                                                        <div className="grid grid-cols-2 gap-3 animate-in fade-in">
+                                                            <div><label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">GST Number</label><input maxLength={15} className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 uppercase" value={editFormData.gstNumber} onChange={e => setEditFormData({ ...editFormData, gstNumber: e.target.value.toUpperCase() })} /></div>
+                                                            <div><label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">GST Rate (%)</label><input type="number" className="w-full p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50" value={editFormData.gstRate} onChange={e => setEditFormData({ ...editFormData, gstRate: e.target.value })} /></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">PAN Card Photo</label>
+                                                    <div className="relative w-full flex-1 min-h-[160px] rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center overflow-hidden hover:border-green-500 transition-colors">
+                                                        <input type="file" accept="image/*" onChange={(e) => handleUploadBankDoc(e, 'pan')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                                                        {editFormData.panUrl ? (
+                                                            <img src={editFormData.panUrl} className="w-full h-full object-contain p-2 mix-blend-multiply" alt="PAN" />
+                                                        ) : (
+                                                            <>
+                                                                <UploadCloud size={28} className="text-gray-400 mb-2" />
+                                                                <span className="text-sm font-bold text-gray-500">Upload Image</span>
+                                                            </>
+                                                        )}
+                                                        {isUploadingImage && <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-20"><Loader2 className="animate-spin text-green-600" size={24} /></div>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* UPI Details */}
+                                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                                            <h4 className="font-bold text-gray-900 mb-6 text-lg border-b border-gray-100 pb-3">UPI Details (Optional)</h4>
+                                            <div><label className="text-[11px] font-bold text-gray-500 uppercase block mb-1.5">UPI ID / VPA</label><input maxLength={40} className="w-full md:w-1/2 p-2.5 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-green-500 bg-gray-50" value={editFormData.upiId} onChange={e => setEditFormData({ ...editFormData, upiId: e.target.value })} placeholder="e.g. 9876543210@ybl" /></div>
+                                        </div>
+
+                                        <div className="flex justify-end pt-4">
+                                            <button onClick={handleUpdateDetails} disabled={isSaving || isUploadingImage} className="px-8 py-3 font-bold text-white bg-green-600 rounded-xl hover:bg-green-700 flex items-center gap-2 shadow-lg transition-colors">
+                                                {isSaving ? <Loader2 className="animate-spin" /> : <Save size={20} />} Save KYC Details
+                                            </button>
                                         </div>
                                     </div>
                                 )}
