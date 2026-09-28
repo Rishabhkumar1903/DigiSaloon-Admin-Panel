@@ -107,9 +107,13 @@ export default function Partners() {
 
       panNumber: partner.legal?.panNumber || "",
       gstNumber: partner.legal?.gstNumber || "",
+      gstRate: partner.legal?.gstRate || "18",
+      gstRegistered: partner.legal?.gstRegistered === "Yes",
       bankName: partner.bankDetails?.bankName || "",
+      accountName: partner.bankDetails?.accountName || "",
       accountNumber: partner.bankDetails?.accountNumber || "",
       ifscCode: partner.bankDetails?.ifscCode || "",
+      upiId: partner.bankDetails?.upiId || "",
       images: partner.images || [],
       services: partner.services || [],
       team: partner.team || [],
@@ -184,9 +188,13 @@ export default function Partners() {
 
         "legal.panNumber": editForm.panNumber,
         "legal.gstNumber": editForm.gstNumber,
+        "legal.gstRate": Number(editForm.gstRate || 18),
+        "legal.gstRegistered": editForm.gstRegistered ? "Yes" : "No",
         "bankDetails.bankName": editForm.bankName,
+        "bankDetails.accountName": editForm.accountName,
         "bankDetails.accountNumber": editForm.accountNumber,
         "bankDetails.ifscCode": editForm.ifscCode,
+        "bankDetails.upiId": editForm.upiId,
         "images": editForm.images,
         "services": editForm.services,
         "team": editForm.team,
@@ -556,13 +564,62 @@ export default function Partners() {
 
               <div className="space-y-4">
                 <h3 className="font-bold text-gray-800 border-b pb-1">🏦 Bank & Legal</h3>
+                
+                {/* PAN & GST */}
                 <div className="grid grid-cols-2 gap-4">
-                  <input type="text" placeholder="PAN" value={editForm.panNumber} onChange={(e) => setEditForm({ ...editForm, panNumber: e.target.value })} className="p-3 border rounded-lg w-full" />
-                  <input type="text" placeholder="GST" value={editForm.gstNumber} onChange={(e) => setEditForm({ ...editForm, gstNumber: e.target.value })} className="p-3 border rounded-lg w-full" />
-                  <input type="text" placeholder="Bank" value={editForm.bankName} onChange={(e) => setEditForm({ ...editForm, bankName: e.target.value })} className="p-3 border rounded-lg w-full" />
-                  <input type="text" placeholder="IFSC" value={editForm.ifscCode} onChange={(e) => setEditForm({ ...editForm, ifscCode: e.target.value })} className="p-3 border rounded-lg w-full" />
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">PAN Number</label>
+                    <input type="text" placeholder="PAN Number" value={editForm.panNumber} onChange={(e) => setEditForm({ ...editForm, panNumber: e.target.value.toUpperCase() })} className="p-3 border rounded-lg w-full uppercase" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">GST Registered?</label>
+                    <select value={editForm.gstRegistered ? "Yes" : "No"} onChange={(e) => setEditForm({ ...editForm, gstRegistered: e.target.value === "Yes" })} className="p-3 border rounded-lg w-full bg-white">
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                  </div>
                 </div>
-                <input type="text" placeholder="Account Number" value={editForm.accountNumber} onChange={(e) => setEditForm({ ...editForm, accountNumber: e.target.value })} className="p-3 border rounded-lg w-full" />
+
+                {editForm.gstRegistered && (
+                  <div className="grid grid-cols-2 gap-4 animate-in fade-in">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">GST Number</label>
+                      <input type="text" placeholder="GST Number" value={editForm.gstNumber} onChange={(e) => setEditForm({ ...editForm, gstNumber: e.target.value.toUpperCase() })} className="p-3 border rounded-lg w-full uppercase" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">GST Rate (%)</label>
+                      <input type="number" placeholder="18" value={editForm.gstRate} onChange={(e) => setEditForm({ ...editForm, gstRate: e.target.value })} className="p-3 border rounded-lg w-full" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Details */}
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Bank Name</label>
+                    <input type="text" placeholder="Bank Name" value={editForm.bankName} onChange={(e) => setEditForm({ ...editForm, bankName: e.target.value })} className="p-3 border rounded-lg w-full" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">IFSC Code</label>
+                    <input type="text" placeholder="IFSC Code" value={editForm.ifscCode} onChange={(e) => setEditForm({ ...editForm, ifscCode: e.target.value.toUpperCase() })} className="p-3 border rounded-lg w-full uppercase" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Account Holder Name</label>
+                    <input type="text" placeholder="Account Name" value={editForm.accountName} onChange={(e) => setEditForm({ ...editForm, accountName: e.target.value })} className="p-3 border rounded-lg w-full" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Account Number</label>
+                    <input type="text" placeholder="Account Number" value={editForm.accountNumber} onChange={(e) => setEditForm({ ...editForm, accountNumber: e.target.value.replace(/\D/g, '') })} className="p-3 border rounded-lg w-full" />
+                  </div>
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">UPI ID (Optional)</label>
+                    <input type="text" placeholder="UPI ID / VPA" value={editForm.upiId} onChange={(e) => setEditForm({ ...editForm, upiId: e.target.value })} className="p-3 border rounded-lg w-full" />
+                </div>
               </div>
 
               <div className="space-y-2">
