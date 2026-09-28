@@ -316,7 +316,7 @@ export default function ManageSalons() {
             let finalImageUrl = "";
             if (imageFile) {
                 const options = {
-                    maxSizeMB: 0.03,
+                    maxSizeMB: 0.02,
                     maxWidthOrHeight: 500,
                     useWebWorker: true,
                     fileType: 'image/webp',
