@@ -452,8 +452,7 @@ export default function ManageSalons() {
         }
     };
 
-    // OLD STYLIST LOGIC (Kept for reference if needed)
-    const handleAddStylist = async () => {
+const handleAddStylist = async () => {
         if (!newStylist.name || !newStylist.role) return alert("Stylist Name and Role are required!");
         setIsSaving(true);
         try {
@@ -473,6 +472,11 @@ export default function ManageSalons() {
             await updateDoc(docRef, { team: updatedTeam });
 
             setEditFormData({ ...editFormData, team: updatedTeam });
+            
+            // 🔥 NAYA JADOO: selectedPartner aur main partners list ko bhi turant update karo 🔥
+            setSelectedPartner(prev => ({ ...prev, team: updatedTeam }));
+            setPartners(prev => prev.map(p => p.id === selectedPartner.id ? { ...p, team: updatedTeam } : p));
+
             setNewStylist({ name: "", role: "" });
             setStylistImageFile(null);
             document.getElementById('stylist-file-input').value = '';
@@ -489,7 +493,13 @@ export default function ManageSalons() {
             const updatedTeam = editFormData.team.filter(s => s.id !== stylistId);
             const docRef = doc(db, "partners", selectedPartner.id);
             await updateDoc(docRef, { team: updatedTeam });
+            
             setEditFormData({ ...editFormData, team: updatedTeam });
+            
+            // 🔥 NAYA JADOO: Yahan bhi states ko turant update karo 🔥
+            setSelectedPartner(prev => ({ ...prev, team: updatedTeam }));
+            setPartners(prev => prev.map(p => p.id === selectedPartner.id ? { ...p, team: updatedTeam } : p));
+            
         } catch (e) { console.error(e); alert("Failed to remove stylist."); }
         setIsSaving(false);
     };
