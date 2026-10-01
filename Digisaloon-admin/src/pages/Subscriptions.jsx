@@ -32,14 +32,12 @@ export default function Subscriptions() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // A. Fetch Promo Details (Founder Trial Info)
-      const promoRef = doc(db, "partner_promos", "FOUNDER03");
-      const promoSnap = await getDoc(promoRef);
-      let promoData = null;
-      if (promoSnap.exists()) {
-        promoData = promoSnap.data();
-        setFounderPromo(promoData);
-      }
+      // A. Fetch ALL Promos (Pehle sirf FOUNDER03 tha, ab sab aayenge)
+      const promosSnap = await getDocs(collection(db, "partner_promos"));
+      const allPromos = promosSnap.docs.map(doc => ({
+          id: doc.id, 
+          ...doc.data()
+      }));
 
       // B. Fetch All Partners
       const partnersSnap = await getDocs(collection(db, "partners"));
@@ -69,8 +67,17 @@ export default function Subscriptions() {
             rawArea = "Misc"; 
         }
 
-        // Check if on Trial
-        const isTrial = promoData && promoData.usedBy && promoData.usedBy.includes(email);
+        // 🔥 NAYA LOGIC: Check if email exists in ANY promo's usedBy array
+        let isTrial = false;
+        let appliedPromo = null;
+
+        for (const promo of allPromos) {
+            if (promo.usedBy && promo.usedBy.includes(email)) {
+                isTrial = true;
+                appliedPromo = promo;
+                break; // Email mil gaya, ab aage loop chalane ki jarurat nahi
+            }
+        }
         
         // Subscription Dates
         const validUntil = d.subscriptionValidUntil ? d.subscriptionValidUntil.toDate() : null;
@@ -113,7 +120,8 @@ export default function Subscriptions() {
           validUntil: validUntil,
           status: status,
           statusColor: statusColor,
-          subscriptionType: d.subscriptionType || (isTrial ? `Founder (${promoData.trialMonths}M)` : "Not Set"),
+          // Yahan thoda change kiya hai taaki jo code use hua hai uski details aaye (e.g. WINTER50 (1M))
+          subscriptionType: d.subscriptionType || (isTrial && appliedPromo ? `${appliedPromo.id} (${appliedPromo.trialMonths || 1}M)` : "Not Set"),
           isExpiringSoon: isExpiringSoon
         };
       });
