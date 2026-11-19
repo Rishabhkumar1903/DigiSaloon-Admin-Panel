@@ -1,29 +1,30 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, Outlet } from "react-router-dom";
 import { auth, db } from "./firebase-config";
 import { onAuthStateChanged, signOut, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 // Icons Import
-import { LayoutDashboard, Users, Scissors, CreditCard, Image as ImageIcon, LogOut, Key, Calendar, Store, User, Tag, AlertOctagon, Wallet } from "lucide-react";
+import {
+  LayoutDashboard, Scissors, CreditCard, Image as ImageIcon, LogOut,
+  Key, Calendar, Store, User, Tag, AlertOctagon, Wallet, Ticket
+} from "lucide-react";
 
 // Pages Import
 import Partners from "./pages/Partners";
-import Credentials from "./pages/Credentials"; 
+import Credentials from "./pages/Credentials";
 import Bookings from "./pages/Bookings";
 import Payments from "./pages/Subscriptions";
 import ManageSalons from "./pages/ManageSalons";
-import Dashboard from "./pages/Dashboard"; 
-import UserPage from "./pages/Users"; // 🔥 Suggestion: File ka naam Users.js rakha tha humne last time, check kar lena
+import Dashboard from "./pages/Dashboard";
+import UserPage from "./pages/Users";
 import Banners from "./pages/Banners";
-import Broadcast from "./pages/Broadcast"; // Broadcast page import kiya hai, lekin route mein add karna baad mein decide karenge.
+import Broadcast from "./pages/Broadcast";
 import SupportTickets from "./pages/SupportTickets";
 import ReportedReviews from "./pages/ReportedReviews";
 import Settlements from "./pages/Settlements";
-
 import Billing from "./pages/Billing";
-import GlobalOffers from "./pages/GlobalOffers"; // Global Offers page import kiya hai, lekin route mein add karna baad mein decide karenge.
-import { Ticket } from "lucide-react"; // Icon ke liye
+import GlobalOffers from "./pages/GlobalOffers";
 
 // --- 1. Login Component ---
 const Login = () => {
@@ -47,7 +48,7 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-[#800000] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md p-10 rounded-3xl shadow-2xl">
-        <h2 className="text-4xl font-black text-center text-gray-800 mb-2 ">DigiSaloon</h2>
+        <h2 className="text-4xl font-black text-center text-gray-800 mb-2">DigiSaloon</h2>
         <p className="text-center text-gray-400 mb-10 font-medium tracking-wide uppercase text-xs">Super Admin Portal</p>
         {error && <p className="bg-red-50 text-red-500 p-4 rounded-xl mb-6 text-sm font-bold text-center border border-red-100">{error}</p>}
         <form onSubmit={handleLogin} className="space-y-6">
@@ -62,38 +63,32 @@ const Login = () => {
   );
 };
 
-// --- 2. Dashboard Layout ---
-const DashboardLayout = ({ children }) => {
+// --- 2. Dashboard Layout (with Outlet) ---
+const DashboardLayout = () => {
   const menuItems = [
-    { name: "Dashboard", icon: <LayoutDashboard size={20}/>, path: "/" }, 
-    { name: "Partners", icon: <Scissors size={20}/>, path: "/partners" },
-    { name: "Credentials", icon: <Key size={20}/>, path: "/credentials" },
-    { name: "Settlements", icon: <Wallet size={20}/>, path: "/settlements" }, 
-    { name: "Bookings", icon: <CreditCard size={20}/>, path: "/bookings" },
-    { name: "Subscriptions", icon: <Calendar size={20}/>, path: "/subscriptions" },
-    { name: "Manage Salons", icon: <Store size={20}/>, path: "/manage-salons" }, 
-    { name: "Billing", icon: <CreditCard size={20}/>, path: "/billing" },
-    { name: "Broadcast", icon: <Ticket size={20}/>, path: "/broadcast" },
-    { name: "Users", icon: <User size={20}/>, path: "/users" }, 
-    { name: "Banners", icon: <ImageIcon size={20}/>, path: "/banners" },
-    { name: "Global Offers", icon: <Tag size={20}/>, path: "/global-offers" },
-    { name: "Support Tickets", icon: <Ticket size={20}/>, path: "/support-tickets" },
-    { name: "Reported Reviews", icon: <AlertOctagon size={20}/>, path: "/reported-reviews" },
+    { name: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
+    { name: "Partners", icon: <Scissors size={20} />, path: "/partners" },
+    { name: "Credentials", icon: <Key size={20} />, path: "/credentials" },
+    { name: "Settlements", icon: <Wallet size={20} />, path: "/settlements" },
+    { name: "Bookings", icon: <CreditCard size={20} />, path: "/bookings" },
+    { name: "Subscriptions", icon: <Calendar size={20} />, path: "/subscriptions" },
+    { name: "Manage Salons", icon: <Store size={20} />, path: "/manage-salons" },
+    { name: "Billing", icon: <CreditCard size={20} />, path: "/billing" },
+    { name: "Broadcast", icon: <Ticket size={20} />, path: "/broadcast" },
+    { name: "Users", icon: <User size={20} />, path: "/users" },
+    { name: "Banners", icon: <ImageIcon size={20} />, path: "/banners" },
+    { name: "Global Offers", icon: <Tag size={20} />, path: "/global-offers" },
+    { name: "Support Tickets", icon: <Ticket size={20} />, path: "/support-tickets" },
+    { name: "Reported Reviews", icon: <AlertOctagon size={20} />, path: "/reported-reviews" },
   ];
 
   return (
     <div className="flex min-h-screen bg-gray-50 text-gray-800">
-      
-      {/* MAIN SIDEBAR CONTAINER: h-screen rakha taaki full height le */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col fixed h-screen z-10">
-        
-        {/* 1. TOP LOGO (Fixed) */}
         <div className="p-6 shrink-0">
           <h1 className="text-2xl font-black text-red-600 italic">DigiSaloon</h1>
         </div>
-        
-        {/* 2. 🔥 MENU ITEMS (SCROLLABLE) 🔥 
-            flex-1 aur overflow-y-auto lagaya hai. Ab sirf ye list upar-neeche scroll hogi */}
+
         <nav className="flex-1 px-4 space-y-1 pb-4 overflow-y-auto hide-scrollbar">
           {menuItems.map((item) => (
             <Link key={item.name} to={item.path} className="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all font-semibold text-gray-600">
@@ -101,19 +96,16 @@ const DashboardLayout = ({ children }) => {
             </Link>
           ))}
         </nav>
-        
-        {/* 3. BOTTOM LOGOUT BUTTON (Fixed) 
-            Ispe bg-white rakha hai taaki scrolling items iske peeche chup jayein */}
+
         <div className="p-4 shrink-0 border-t border-gray-100 bg-white">
           <button onClick={() => auth.signOut()} className="w-full flex items-center justify-center gap-3 p-3 text-gray-500 font-bold hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
-            <LogOut size={20}/> Logout
+            <LogOut size={20} /> Logout
           </button>
         </div>
-
       </aside>
-      
+
       <main className="flex-1 p-8 ml-64 overflow-y-auto min-h-screen">
-        {children}
+        <Outlet />
       </main>
     </div>
   );
@@ -150,41 +142,38 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-red-600 animate-pulse">Verifying Access...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-bold text-red-600 animate-pulse">
+        Verifying Access...
+      </div>
+    );
+  }
 
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={!admin ? <Login /> : <Navigate to="/" />} />
-        <Route path="/*" element={admin ? (
-          <DashboardLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} /> 
-              
-              <Route path="/partners" element={<Partners />} />
-              <Route path="/credentials" element={<Credentials />} />
-              <Route path="/bookings" element={<Bookings />} />
-              <Route path="/subscriptions" element={<Payments />} />
-              
-              <Route path="/manage-salons" element={<ManageSalons />} />
-              <Route path="/banners" element={<Banners />} />
-              <Route path="/Support-tickets" element={<SupportTickets />} />
-              <Route path="/reported-reviews" element={<ReportedReviews />} />
-              <Route path="/settlements" element={<Settlements />} />
-              
-              {/* 🔥 FIX: Path aur Component Name match kar lena */}
-              <Route path="/users" element={<UserPage />} /> 
-              
-              <Route path="/billing" element={<Billing />} />
-              <Route path="/broadcast" element={<Broadcast />} />
-              <Route path="/global-offers" element={<GlobalOffers />} />
-              {/* 🔥 FIX 2: Duplicate Route hata diya (ManageSalons wala) */}
-              
-              
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </DashboardLayout>
-        ) : <Navigate to="/login" />} />
+        <Route path="/login" element={!admin ? <Login /> : <Navigate to="/" replace />} />
+
+        <Route element={admin ? <DashboardLayout /> : <Navigate to="/login" replace />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/partners" element={<Partners />} />
+          <Route path="/credentials" element={<Credentials />} />
+          <Route path="/bookings" element={<Bookings />} />
+          <Route path="/bookings/:salonSlug" element={<Bookings />} />
+          <Route path="/subscriptions" element={<Payments />} />
+          <Route path="/manage-salons" element={<ManageSalons />} />
+          <Route path="/banners" element={<Banners />} />
+          <Route path="/support-tickets" element={<SupportTickets />} />
+          <Route path="/reported-reviews" element={<ReportedReviews />} />
+          <Route path="/settlements" element={<Settlements />} />
+          <Route path="/users" element={<UserPage />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/broadcast" element={<Broadcast />} />
+          <Route path="/global-offers" element={<GlobalOffers />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to={admin ? "/" : "/login"} replace />} />
       </Routes>
     </Router>
   );
