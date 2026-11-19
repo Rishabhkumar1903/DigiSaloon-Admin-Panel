@@ -54,7 +54,7 @@ export default function ManageSalons() {
     const [newPromo, setNewPromo] = useState({ code: "", type: "percentage", value: "", minOrder: "", maxDiscount: "" });
     const [isSavingPromo, setIsSavingPromo] = useState(false);
 
-    const CATEGORIES = ["Hair", "Beard", "Facial", "Massage", "Manicure", "Pedicure", "Waxing", "Threading", "Hair Colour", "Bridal", "Skin Care", "Spa", "Other"];
+    const CATEGORIES = ["Hair", "Beard", "Facial", "Massage", "Makeup", "Manicure", "Pedicure", "Waxing", "Threading", "Hair Colour", "Bridal", "Skin Care", "Spa", "Other"];
 
     // --- STATES FOR ADDING SALON ---
     const [isAddingSalon, setIsAddingSalon] = useState(false);
